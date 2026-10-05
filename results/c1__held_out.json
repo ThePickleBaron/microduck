@@ -1,0 +1,473 @@
+{
+  "label": "c1",
+  "policy": "/home/claude/microduck-pretraining/policies/vendor/velstand.onnx",
+  "site": "held_out",
+  "site_file": "/home/claude/microduck-pretraining/sites/held_out.toml",
+  "created": "2026-10-04T21:17:01",
+  "scenarios": {
+    "slippery_floor": {
+      "falls_per_10min": 0.0,
+      "falls_per_10min_std": 0.0,
+      "lin_vel_err_mps": 0.14128553057962812,
+      "lin_vel_err_std": 0.0,
+      "yaw_rate_err_radps": 0.11779829377620728,
+      "upright_fraction": 0.9918333333333335,
+      "stall_fraction": 0.2103456729590586,
+      "sim_seconds": 360.0,
+      "runs": [
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.14128553057962812,
+          "yaw_rate_err_radps": 0.11779829377620728,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.2103456729590586,
+          "wall_seconds": 6.89220854200039
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.14128553057962812,
+          "yaw_rate_err_radps": 0.11779829377620728,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.2103456729590586,
+          "wall_seconds": 7.124393994000002
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.14128553057962812,
+          "yaw_rate_err_radps": 0.11779829377620728,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.2103456729590586,
+          "wall_seconds": 7.058706395000172
+        }
+      ],
+      "config": {
+        "name": "slippery_floor",
+        "description": "Polished concrete: foot friction 0.4.",
+        "scene": "flat",
+        "foot_friction": 0.4,
+        "payload_kg": 0.0,
+        "vin": 7.4,
+        "vin_drop_gain": 0.1,
+        "delay_steps": 1,
+        "rough_height_mm": 0.0,
+        "rough_cell_m": 0.1,
+        "push_speed_mps": 0.0,
+        "push_interval_s": [
+          4.0,
+          8.0
+        ],
+        "duration_s": 120.0,
+        "seeds": 3
+      }
+    },
+    "heavy_payload": {
+      "falls_per_10min": 0.0,
+      "falls_per_10min_std": 0.0,
+      "lin_vel_err_mps": 0.1306583640042435,
+      "lin_vel_err_std": 0.0,
+      "yaw_rate_err_radps": 0.11729502612266991,
+      "upright_fraction": 0.9918333333333335,
+      "stall_fraction": 0.000980632507967639,
+      "sim_seconds": 360.0,
+      "runs": [
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.1306583640042435,
+          "yaw_rate_err_radps": 0.11729502612266991,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.000980632507967639,
+          "wall_seconds": 7.166506688000027
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.1306583640042435,
+          "yaw_rate_err_radps": 0.11729502612266991,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.000980632507967639,
+          "wall_seconds": 7.035779801999979
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.1306583640042435,
+          "yaw_rate_err_radps": 0.11729502612266991,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.000980632507967639,
+          "wall_seconds": 7.241194958000051
+        }
+      ],
+      "config": {
+        "name": "heavy_payload",
+        "description": "150 g bolted to the trunk (about 20% of robot mass).",
+        "scene": "flat",
+        "foot_friction": 1.0,
+        "payload_kg": 0.15,
+        "vin": 7.4,
+        "vin_drop_gain": 0.1,
+        "delay_steps": 1,
+        "rough_height_mm": 0.0,
+        "rough_cell_m": 0.1,
+        "push_speed_mps": 0.0,
+        "push_interval_s": [
+          4.0,
+          8.0
+        ],
+        "duration_s": 120.0,
+        "seeds": 3
+      }
+    },
+    "rough_floor": {
+      "falls_per_10min": 0.0,
+      "falls_per_10min_std": 0.0,
+      "lin_vel_err_mps": 0.13578277821620202,
+      "lin_vel_err_std": 0.006455467783667642,
+      "yaw_rate_err_radps": 0.1705674376550376,
+      "upright_fraction": 0.9918333333333335,
+      "stall_fraction": 0.09226117512462205,
+      "sim_seconds": 360.0,
+      "runs": [
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.13322238551348192,
+          "yaw_rate_err_radps": 0.1633072161025119,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.03873498406472175,
+          "wall_seconds": 8.607808416999887
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.12947397671772384,
+          "yaw_rate_err_radps": 0.17091468258901138,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.04437362098553567,
+          "wall_seconds": 8.571536887999628
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.14465197241740033,
+          "yaw_rate_err_radps": 0.17748041427358957,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.19367492032360872,
+          "wall_seconds": 8.686495214999923
+        }
+      ],
+      "config": {
+        "name": "rough_floor",
+        "description": "Uneven floor: random bumps up to 10 mm on a 10 cm grid.",
+        "scene": "flat",
+        "foot_friction": 1.0,
+        "payload_kg": 0.0,
+        "vin": 7.4,
+        "vin_drop_gain": 0.1,
+        "delay_steps": 1,
+        "rough_height_mm": 10.0,
+        "rough_cell_m": 0.1,
+        "push_speed_mps": 0.0,
+        "push_interval_s": [
+          4.0,
+          8.0
+        ],
+        "duration_s": 120.0,
+        "seeds": 3
+      }
+    },
+    "worn_gears": {
+      "falls_per_10min": 0.0,
+      "falls_per_10min_std": 0.0,
+      "lin_vel_err_mps": 0.12745248045286017,
+      "lin_vel_err_std": 0.0,
+      "yaw_rate_err_radps": 0.15692636269383223,
+      "upright_fraction": 0.9918333333333335,
+      "stall_fraction": 0.001961265015935278,
+      "sim_seconds": 360.0,
+      "runs": [
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.12745248045286017,
+          "yaw_rate_err_radps": 0.15692636269383223,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.001961265015935278,
+          "wall_seconds": 7.744408039000064
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.12745248045286017,
+          "yaw_rate_err_radps": 0.15692636269383223,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.001961265015935278,
+          "wall_seconds": 7.913764160000028
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.12745248045286017,
+          "yaw_rate_err_radps": 0.15692636269383223,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.001961265015935278,
+          "wall_seconds": 7.5716335510001045
+        }
+      ],
+      "config": {
+        "name": "worn_gears",
+        "description": "Gear backlash of +/-1 deg in every servo.",
+        "scene": "backlash",
+        "foot_friction": 1.0,
+        "payload_kg": 0.0,
+        "vin": 7.4,
+        "vin_drop_gain": 0.1,
+        "delay_steps": 1,
+        "rough_height_mm": 0.0,
+        "rough_cell_m": 0.1,
+        "push_speed_mps": 0.0,
+        "push_interval_s": [
+          4.0,
+          8.0
+        ],
+        "duration_s": 120.0,
+        "seeds": 3
+      }
+    },
+    "low_battery": {
+      "falls_per_10min": 0.0,
+      "falls_per_10min_std": 0.0,
+      "lin_vel_err_mps": 0.1440820566366323,
+      "lin_vel_err_std": 0.0,
+      "yaw_rate_err_radps": 0.15536735189121761,
+      "upright_fraction": 0.9918333333333335,
+      "stall_fraction": 0.05172836479529296,
+      "sim_seconds": 360.0,
+      "runs": [
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.1440820566366323,
+          "yaw_rate_err_radps": 0.15536735189121761,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.05172836479529296,
+          "wall_seconds": 6.8395006850000755
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.1440820566366323,
+          "yaw_rate_err_radps": 0.15536735189121761,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.05172836479529296,
+          "wall_seconds": 7.111121211999944
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.1440820566366323,
+          "yaw_rate_err_radps": 0.15536735189121761,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.05172836479529296,
+          "wall_seconds": 7.065465242999835
+        }
+      ],
+      "config": {
+        "name": "low_battery",
+        "description": "Battery at 6.3 V with heavy sag (gain 0.25).",
+        "scene": "flat",
+        "foot_friction": 1.0,
+        "payload_kg": 0.0,
+        "vin": 6.3,
+        "vin_drop_gain": 0.25,
+        "delay_steps": 1,
+        "rough_height_mm": 0.0,
+        "rough_cell_m": 0.1,
+        "push_speed_mps": 0.0,
+        "push_interval_s": [
+          4.0,
+          8.0
+        ],
+        "duration_s": 120.0,
+        "seeds": 3
+      }
+    },
+    "slow_link": {
+      "falls_per_10min": 0.0,
+      "falls_per_10min_std": 0.0,
+      "lin_vel_err_mps": 0.11717951550718571,
+      "lin_vel_err_std": 1.3877787807814457e-17,
+      "yaw_rate_err_radps": 0.12004478719957672,
+      "upright_fraction": 0.9918333333333335,
+      "stall_fraction": 0.003677371904878647,
+      "sim_seconds": 360.0,
+      "runs": [
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.11717951550718572,
+          "yaw_rate_err_radps": 0.12004478719957672,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.003677371904878647,
+          "wall_seconds": 7.06615663599996
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.11717951550718572,
+          "yaw_rate_err_radps": 0.12004478719957672,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.003677371904878647,
+          "wall_seconds": 6.9968382609999935
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.11717951550718572,
+          "yaw_rate_err_radps": 0.12004478719957672,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.003677371904878647,
+          "wall_seconds": 7.184446868000123
+        }
+      ],
+      "config": {
+        "name": "slow_link",
+        "description": "Two control steps (40 ms) of command delay.",
+        "scene": "flat",
+        "foot_friction": 1.0,
+        "payload_kg": 0.0,
+        "vin": 7.4,
+        "vin_drop_gain": 0.1,
+        "delay_steps": 2,
+        "rough_height_mm": 0.0,
+        "rough_cell_m": 0.1,
+        "push_speed_mps": 0.0,
+        "push_interval_s": [
+          4.0,
+          8.0
+        ],
+        "duration_s": 120.0,
+        "seeds": 3
+      }
+    },
+    "bumped": {
+      "falls_per_10min": 3.3333333333333335,
+      "falls_per_10min_std": 2.3570226039551585,
+      "lin_vel_err_mps": 0.133041953668928,
+      "lin_vel_err_std": 0.004246989956453703,
+      "yaw_rate_err_radps": 0.18557231648409747,
+      "upright_fraction": 0.9862777777777779,
+      "stall_fraction": 0.051280726671112505,
+      "sim_seconds": 360.0,
+      "runs": [
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.1333223092994943,
+          "yaw_rate_err_radps": 0.1758982801504817,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.026967393969110076,
+          "wall_seconds": 7.2031400969999595
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 1,
+          "lin_vel_err_mps": 0.1380975853262521,
+          "yaw_rate_err_radps": 0.19202177106745075,
+          "upright_fraction": 0.9835,
+          "stall_fraction": 0.08335376317724932,
+          "wall_seconds": 6.820368724999753
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 1,
+          "lin_vel_err_mps": 0.1277059663810376,
+          "yaw_rate_err_radps": 0.18879689823435994,
+          "upright_fraction": 0.9835,
+          "stall_fraction": 0.043521022866978114,
+          "wall_seconds": 6.978697370000191
+        }
+      ],
+      "config": {
+        "name": "bumped",
+        "description": "Pushed at 0.5 m/s every 4-8 s.",
+        "scene": "flat",
+        "foot_friction": 1.0,
+        "payload_kg": 0.0,
+        "vin": 7.4,
+        "vin_drop_gain": 0.1,
+        "delay_steps": 1,
+        "rough_height_mm": 0.0,
+        "rough_cell_m": 0.1,
+        "push_speed_mps": 0.5,
+        "push_interval_s": [
+          4.0,
+          8.0
+        ],
+        "duration_s": 120.0,
+        "seeds": 3
+      }
+    },
+    "site_combined": {
+      "falls_per_10min": 0.0,
+      "falls_per_10min_std": 0.0,
+      "lin_vel_err_mps": 0.13744239802018046,
+      "lin_vel_err_std": 0.0036334284121135743,
+      "yaw_rate_err_radps": 0.16052409575620266,
+      "upright_fraction": 0.9918333333333335,
+      "stall_fraction": 0.09438587889188527,
+      "sim_seconds": 360.0,
+      "runs": [
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.13323411442231975,
+          "yaw_rate_err_radps": 0.1615540262687779,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.04241235596960039,
+          "wall_seconds": 9.600284384000133
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.13699301971758168,
+          "yaw_rate_err_radps": 0.16340748707287245,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.1257661191468497,
+          "wall_seconds": 9.651352861000305
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.14210005992064,
+          "yaw_rate_err_radps": 0.15661077392695763,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.11497916155920569,
+          "wall_seconds": 10.048557766000158
+        }
+      ],
+      "config": {
+        "name": "site_combined",
+        "description": "Rough floor + worn gears + 100 g payload + friction 0.6 + 6.8 V.",
+        "scene": "backlash",
+        "foot_friction": 0.6,
+        "payload_kg": 0.1,
+        "vin": 6.8,
+        "vin_drop_gain": 0.1,
+        "delay_steps": 1,
+        "rough_height_mm": 6.0,
+        "rough_cell_m": 0.1,
+        "push_speed_mps": 0.0,
+        "push_interval_s": [
+          4.0,
+          8.0
+        ],
+        "duration_s": 120.0,
+        "seeds": 3
+      }
+    }
+  }
+}

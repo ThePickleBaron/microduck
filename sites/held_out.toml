@@ -1,0 +1,101 @@
+# Held-out site: conditions NO condition trained on exactly.
+# Each scenario pushes one factor just past the widest training range (the
+# site-specific condition C4's), and "site_combined" stacks them, the way a
+# real destination differs from the vendor's lab in several ways at once.
+#
+# Training ranges for reference (vendored recipe / C4):
+#   foot friction        0.7-1.3   / 0.5-1.5
+#   payload              none      / 0-100 g
+#   battery voltage      6.5-8.2 V, sag gain 0-0.2
+#   command delay        3-6 physics steps (0.75-1.5 control steps)
+#   pushes               +/-0.3 m/s velocity change every 3-6 s
+#   terrain              flat      / rough generator
+#   gear backlash        none      / +/-1 deg
+
+[site]
+name = "held_out"
+description = "Conditions just outside every training range, alone and combined."
+
+[defaults]
+scene = "flat"
+foot_friction = 1.0
+payload_kg = 0.0
+vin = 7.4
+vin_drop_gain = 0.1
+delay_steps = 1
+duration_s = 120.0
+seeds = 3
+
+[[commands]]
+vx = 0.30
+seconds = 6.0
+
+[[commands]]
+wz = 0.8
+seconds = 3.0
+
+[[commands]]
+vx = 0.25
+vy = 0.15
+seconds = 4.0
+
+[[commands]]
+seconds = 2.0
+
+[[commands]]
+vx = 0.30
+seconds = 4.0
+
+[[commands]]
+vx = -0.25
+seconds = 3.0
+
+[[commands]]
+wz = -0.8
+seconds = 3.0
+
+[[scenario]]
+name = "slippery_floor"
+description = "Polished concrete: foot friction 0.4."
+foot_friction = 0.4
+
+[[scenario]]
+name = "heavy_payload"
+description = "150 g bolted to the trunk (about 20% of robot mass)."
+payload_kg = 0.15
+
+[[scenario]]
+name = "rough_floor"
+description = "Uneven floor: random bumps up to 10 mm on a 10 cm grid."
+rough_height_mm = 10.0
+
+[[scenario]]
+name = "worn_gears"
+description = "Gear backlash of +/-1 deg in every servo."
+scene = "backlash"
+
+[[scenario]]
+name = "low_battery"
+description = "Battery at 6.3 V with heavy sag (gain 0.25)."
+vin = 6.3
+vin_drop_gain = 0.25
+
+[[scenario]]
+name = "slow_link"
+description = "Two control steps (40 ms) of command delay."
+delay_steps = 2
+
+[[scenario]]
+name = "bumped"
+description = "Pushed at 0.5 m/s every 4-8 s."
+push_speed_mps = 0.5
+push_interval_s = [4.0, 8.0]
+
+[[scenario]]
+name = "site_combined"
+description = "Rough floor + worn gears + 100 g payload + friction 0.6 + 6.8 V."
+rough_height_mm = 6.0
+scene = "backlash"
+payload_kg = 0.10
+foot_friction = 0.6
+vin = 6.8

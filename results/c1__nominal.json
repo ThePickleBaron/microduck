@@ -1,0 +1,67 @@
+{
+  "label": "c1",
+  "policy": "/home/claude/microduck-pretraining/policies/vendor/velstand.onnx",
+  "site": "nominal",
+  "site_file": "/home/claude/microduck-pretraining/sites/nominal.toml",
+  "created": "2026-10-04T21:16:38",
+  "scenarios": {
+    "nominal": {
+      "falls_per_10min": 0.0,
+      "falls_per_10min_std": 0.0,
+      "lin_vel_err_mps": 0.12669432386826185,
+      "lin_vel_err_std": 0.0,
+      "yaw_rate_err_radps": 0.14208860754650438,
+      "upright_fraction": 0.9918333333333335,
+      "stall_fraction": 0.01127727384162785,
+      "sim_seconds": 360.0,
+      "runs": [
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.12669432386826185,
+          "yaw_rate_err_radps": 0.14208860754650438,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.01127727384162785,
+          "wall_seconds": 7.550872629999958
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.12669432386826185,
+          "yaw_rate_err_radps": 0.14208860754650438,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.01127727384162785,
+          "wall_seconds": 6.743334963000052
+        },
+        {
+          "sim_seconds": 120.0,
+          "falls": 0,
+          "lin_vel_err_mps": 0.12669432386826185,
+          "yaw_rate_err_radps": 0.14208860754650438,
+          "upright_fraction": 0.9918333333333333,
+          "stall_fraction": 0.01127727384162785,
+          "wall_seconds": 7.190527461000329
+        }
+      ],
+      "config": {
+        "name": "nominal",
+        "description": "Training-like conditions.",
+        "scene": "flat",
+        "foot_friction": 1.0,
+        "payload_kg": 0.0,
+        "vin": 7.4,
+        "vin_drop_gain": 0.1,
+        "delay_steps": 1,
+        "rough_height_mm": 0.0,
+        "rough_cell_m": 0.1,
+        "push_speed_mps": 0.0,
+        "push_interval_s": [
+          4.0,
+          8.0
+        ],
+        "duration_s": 120.0,
+        "seeds": 3
+      }
+    }
+  }
+}

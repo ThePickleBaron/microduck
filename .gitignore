@@ -1,0 +1,21 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Training outputs (large; keep exported ONNX in policies/ instead)
+logs/
+wandb/
+outputs/
+*.pt
+
+# Downloaded vendor policies (re-fetch with scripts/get_vendor_policy.py)
+policies/vendor/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,54 @@
+# Reference site: conditions inside every policy's training range.
+# The readiness gap is measured as performance lost going from this site to
+# sites/held_out.toml. Edit freely, but keep it inside the training ranges.
+
+[site]
+name = "nominal"
+description = "Flat floor, nominal battery, small delay, no payload: what training saw on average."
+
+[defaults]
+scene = "flat"
+foot_friction = 1.0
+payload_kg = 0.0
+vin = 7.4
+vin_drop_gain = 0.1
+delay_steps = 1
+duration_s = 120.0
+seeds = 3
+
+# Command schedule shared by every scenario, repeated for the whole run.
+# vx/vy in m/s (body frame), wz in rad/s. Kept inside the training ranges
+# (|vx| <= 0.4, |vy| <= 0.3, |wz| <= 1.0). Speeds start at 0.3 m/s
+# because the stock policies stay standing below ~0.2 m/s when started from rest
+# in this CPU simulator (see docs/experiment_protocol.md).
+[[commands]]
+vx = 0.30
+seconds = 6.0
+
+[[commands]]
+wz = 0.8
+seconds = 3.0
+
+[[commands]]
+vx = 0.25
+vy = 0.15
+seconds = 4.0
+
+[[commands]]
+seconds = 2.0
+
+[[commands]]
+vx = 0.30
+seconds = 4.0
+
+[[commands]]
+vx = -0.25
+seconds = 3.0
+
+[[commands]]
+wz = -0.8
+seconds = 3.0
+
+[[scenario]]
+name = "nominal"
+description = "Training-like conditions."
