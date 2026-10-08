@@ -1,0 +1,64 @@
+# Cinema site: the desktop-cameraman shot list, used by `md-steadycam-eval`
+# (scripts/eval_steadycam.py). Not part of the C1-C4 readiness experiment.
+#
+# Each scenario is one kind of shot, repeated for the whole run. Speeds sit
+# inside the steady-cam training ranges (vx -0.20..0.25, vy +-0.12, wz +-0.6)
+# and at or above ~0.2 m/s, because the stock policies will not break away
+# from standstill below that in this CPU simulator (docs/experiment_protocol.md).
+
+[site]
+name = "cinema"
+description = "Slow dolly, truck, pan, orbit and locked-off shots on a flat desk."
+
+[defaults]
+scene = "flat"
+foot_friction = 1.0
+payload_kg = 0.0
+vin = 7.4
+vin_drop_gain = 0.1
+delay_steps = 1
+duration_s = 60.0
+seeds = 1  # flat desk, no pushes: nothing random, so extra seeds repeat exactly
+
+[[scenario]]
+name = "locked_off"
+description = "Standing still, camera on a subject: any motion is shake."
+commands = [{ seconds = 10.0 }]
+
+[[scenario]]
+name = "dolly_in"
+description = "Slow push-in toward the subject, pause, pull back out."
+commands = [
+  { vx = 0.22, seconds = 6.0 },
+  { seconds = 2.0 },
+  { vx = -0.20, seconds = 6.0 },
+  { seconds = 2.0 },
+]
+
+[[scenario]]
+name = "truck"
+description = "Sideways tracking move past the subject and back."
+commands = [
+  { vy = 0.12, seconds = 5.0 },
+  { seconds = 2.0 },
+  { vy = -0.12, seconds = 5.0 },
+  { seconds = 2.0 },
+]
+
+[[scenario]]
+name = "pan"
+description = "Turn in place left, hold, turn right, hold."
+commands = [
+  { wz = 0.5, seconds = 4.0 },
+  { seconds = 2.0 },
+  { wz = -0.5, seconds = 4.0 },
+  { seconds = 2.0 },
+]
+
+[[scenario]]
+name = "orbit"
+description = "Sideways walk plus a counter-turn: circles a subject ~0.25 m away."
+commands = [
+  { vy = 0.12, wz = -0.48, seconds = 8.0 },
+  { seconds = 2.0 },
+]

@@ -145,3 +145,14 @@ for _task_id, (_make, _exp) in _FACTORIES.items():
         rl_cfg=_rl_cfg(_exp),
         runner_cls=_md_tasks.MicroduckOnPolicyRunner,
     )
+
+
+# --------------------------------------------------------------------------
+# Side projects (not part of the C1-C4 experiment)
+# --------------------------------------------------------------------------
+# Registered after the experiment tasks and guarded, so a problem in a side
+# project can never stop the experiment conditions from loading.
+try:
+    from microduck_pretrain import steadycam as _steadycam  # noqa: F401  (self-registers)
+except Exception as _e:  # pragma: no cover
+    warnings.warn(f"steady-cam task not registered: {_e!r}")

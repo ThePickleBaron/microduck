@@ -1,0 +1,113 @@
+{
+  "label": "vendor",
+  "policy": "policies/vendor/alpha_walking.onnx",
+  "site": "cinema",
+  "created": "2026-10-08T19:01:45",
+  "shots": {
+    "locked_off": {
+      "falls": 0,
+      "ang_rate_dps": 0.6959376567915226,
+      "ang_rate_p95": 0.9364222954679886,
+      "lin_acc_mps2": 0.15443917693889436,
+      "roll_deg": 0.28856123239355785,
+      "lin_vel_err": 0.00011372103740388257,
+      "stall_fraction": NaN,
+      "runs": [
+        {
+          "falls": 0,
+          "ang_rate_dps": 0.6959376567915226,
+          "ang_rate_p95": 0.9364222954679886,
+          "lin_acc_mps2": 0.15443917693889436,
+          "roll_deg": 0.28856123239355785,
+          "lin_vel_err": 0.00011372103740388257,
+          "stall_fraction": NaN,
+          "wall_seconds": 3.9275363260001086
+        }
+      ]
+    },
+    "dolly_in": {
+      "falls": 0,
+      "ang_rate_dps": 4.118437992253426,
+      "ang_rate_p95": 7.672864238744212,
+      "lin_acc_mps2": 0.2522146913442604,
+      "roll_deg": 0.8592040333651252,
+      "lin_vel_err": 0.17728124729605163,
+      "stall_fraction": 1.0,
+      "runs": [
+        {
+          "falls": 0,
+          "ang_rate_dps": 4.118437992253426,
+          "ang_rate_p95": 7.672864238744212,
+          "lin_acc_mps2": 0.2522146913442604,
+          "roll_deg": 0.8592040333651252,
+          "lin_vel_err": 0.17728124729605163,
+          "stall_fraction": 1.0,
+          "wall_seconds": 4.028219737999962
+        }
+      ]
+    },
+    "truck": {
+      "falls": 0,
+      "ang_rate_dps": 2.2307765065946743,
+      "ang_rate_p95": 4.123352851558344,
+      "lin_acc_mps2": 0.5367504282529402,
+      "roll_deg": 0.12686071553107847,
+      "lin_vel_err": 0.09747184433330885,
+      "stall_fraction": 1.0,
+      "runs": [
+        {
+          "falls": 0,
+          "ang_rate_dps": 2.2307765065946743,
+          "ang_rate_p95": 4.123352851558344,
+          "lin_acc_mps2": 0.5367504282529402,
+          "roll_deg": 0.12686071553107847,
+          "lin_vel_err": 0.09747184433330885,
+          "stall_fraction": 1.0,
+          "wall_seconds": 3.9466465990001325
+        }
+      ]
+    },
+    "pan": {
+      "falls": 0,
+      "ang_rate_dps": 3.4384419229081478,
+      "ang_rate_p95": 6.615205485587072,
+      "lin_acc_mps2": 0.3159409371405794,
+      "roll_deg": 0.3408584108295313,
+      "lin_vel_err": 0.00039956204720557474,
+      "stall_fraction": 1.0,
+      "runs": [
+        {
+          "falls": 0,
+          "ang_rate_dps": 3.4384419229081478,
+          "ang_rate_p95": 6.615205485587072,
+          "lin_acc_mps2": 0.3159409371405794,
+          "roll_deg": 0.3408584108295313,
+          "lin_vel_err": 0.00039956204720557474,
+          "stall_fraction": 1.0,
+          "wall_seconds": 4.29392910699994
+        }
+      ]
+    },
+    "orbit": {
+      "falls": 0,
+      "ang_rate_dps": 3.0288260680547205,
+      "ang_rate_p95": 5.180441469870102,
+      "lin_acc_mps2": 0.4508937780289721,
+      "roll_deg": 0.24391783551829607,
+      "lin_vel_err": 0.1047515518070266,
+      "stall_fraction": 1.0,
+      "runs": [
+        {
+          "falls": 0,
+          "ang_rate_dps": 3.0288260680547205,
+          "ang_rate_p95": 5.180441469870102,
+          "lin_acc_mps2": 0.4508937780289721,
+          "roll_deg": 0.24391783551829607,
+          "lin_vel_err": 0.1047515518070266,
+          "stall_fraction": 1.0,
+          "wall_seconds": 4.104297345000077
+        }
+      ]
+    }
+  }
+}

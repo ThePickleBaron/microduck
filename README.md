@@ -78,14 +78,29 @@ After the robot arrives: [docs/hardware_test_protocol.md](docs/hardware_test_pro
 | `md-report` | Combine results, compute readiness gaps, draw the chart |
 | `train`, `play`, `list-envs`, `publish` | The vendored mjlab / Microduck tools |
 
+## Side project: steady-cam walking
+
+Separate from the experiment (C1-C4 are untouched): a camera-stabilizing
+fine-tune of the C3 walker for a desktop-cameraman duck. It warm-starts from a
+finished C3 run and adds camera shake, bob and horizon-tilt costs at the head
+camera. Run it after the C3 runs finish:
+
+```bash
+uv run python scripts/train_steadycam.py            # ~45 min on the 3090
+uv run python scripts/train_steadycam.py --export   # -> policies/steadycam_seed1.onnx
+uv run python scripts/eval_steadycam.py --policy policies/steadycam_seed1.onnx --label steadycam
+```
+
+Details, baseline numbers and what to watch: [docs/steadycam.md](docs/steadycam.md).
+
 ## Repository layout
 
 ```
 src/microduck_pretrain/   conditions, task registration, train/eval/report tools
-sites/                    nominal.toml and held_out.toml scenario definitions
+sites/                    nominal.toml, held_out.toml (experiment) and cinema.toml (steady-cam shots)
 scripts/                  vendor policy download, export, evaluate-all, HF Jobs shims
 setup/                    setup.sh (Linux/WSL) and windows/install_wsl.ps1
-docs/                     protocol, Windows setup, cloud training, hardware test
+docs/                     protocol, Windows setup, cloud training, hardware test, steady-cam
 tests/                    pytest suite (uv run pytest -q; -m "not slow" for the fast half)
 third_party/microduck_rl/ vendored Pollen Robotics training stack (see VENDORED.md)
 policies/                 exported ONNX policies (vendor/ is downloaded, not committed)
