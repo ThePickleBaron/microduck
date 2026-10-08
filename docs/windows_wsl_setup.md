@@ -28,7 +28,7 @@ Without the script: `wsl --install -d Ubuntu-24.04`.
 Clone into the Linux filesystem (`~/`), not `/mnt/c/...`. File access across the Windows boundary is many times slower and makes builds crawl.
 
 ```bash
-git clone <repo URL> ~/microduck-pretraining
+git clone https://github.com/ThePickleBaron/microduck.git ~/microduck-pretraining
 cd ~/microduck-pretraining
 bash setup/setup.sh
 ```

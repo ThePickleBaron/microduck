@@ -50,7 +50,7 @@ Write-Host @"
 
 Next, inside Ubuntu (Start menu > Ubuntu 24.04):
 
-  git clone <your GitHub repo URL> ~/microduck-pretraining
+  git clone https://github.com/ThePickleBaron/microduck.git ~/microduck-pretraining
   cd ~/microduck-pretraining
   bash setup/setup.sh
 

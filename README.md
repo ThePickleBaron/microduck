@@ -35,7 +35,7 @@ Everything runs on Linux. On Windows that means WSL2 Ubuntu 24.04: [docs/windows
 # Windows only, once, in an Administrator PowerShell:
 #   .\setup\windows\install_wsl.ps1
 # Then inside Ubuntu (clone into ~/, not /mnt/c):
-git clone <this repo's URL> ~/microduck-pretraining
+git clone https://github.com/ThePickleBaron/microduck.git ~/microduck-pretraining
 cd ~/microduck-pretraining
 bash setup/setup.sh          # system libs, uv, Python env, vendor policies, md-check
 ```
