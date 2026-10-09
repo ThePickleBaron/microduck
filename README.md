@@ -78,6 +78,25 @@ After the robot arrives: [docs/hardware_test_protocol.md](docs/hardware_test_pro
 | `md-report` | Combine results, compute readiness gaps, draw the chart |
 | `train`, `play`, `list-envs`, `publish` | The vendored mjlab / Microduck tools |
 
+## Follow-up conditions: C5 and C3x
+
+The first C4 runs learned to shuffle instead of step, and their terrain
+curriculum could only move robots down to the easiest level. Two follow-ups
+(C1-C4 unchanged):
+
+| Key | Condition | What it is |
+| --- | --- | --- |
+| c5 | Site fine-tune | C3 policy warm-started, then 1500 iterations on C4's site, with terrain promotion based on progress |
+| c3x | Control | Same warm start and 1500 iterations, in C3's own world |
+
+```bash
+uv run python scripts/train_followup.py c5 --seeds 1 2 3
+uv run python scripts/train_followup.py c3x --seeds 1 2 3
+uv run python scripts/train_followup.py --export
+```
+
+Details and what to watch: [docs/c5_site_finetune.md](docs/c5_site_finetune.md).
+
 ## Side project: steady-cam walking
 
 Separate from the experiment (C1-C4 are untouched): a camera-stabilizing

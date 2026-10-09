@@ -48,10 +48,10 @@ def newest_c3_checkpoint() -> Path:
     )
 
 
-def stage_checkpoint(src: Path, tag: str) -> tuple[str, str]:
+def stage_checkpoint(src: Path, tag: str, experiment: str = EXPERIMENT) -> tuple[str, str]:
     """mjlab only resumes from inside the task's own log folder, so copy the
-    source checkpoint into logs/rsl_rl/steadycam_walk/<tag>/ and point at it."""
-    dest_dir = LOGS / EXPERIMENT / tag
+    source checkpoint into logs/rsl_rl/<experiment>/<tag>/ and point at it."""
+    dest_dir = LOGS / experiment / tag
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / src.name
     if not dest.exists():

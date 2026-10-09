@@ -156,3 +156,8 @@ try:
     from microduck_pretrain import steadycam as _steadycam  # noqa: F401  (self-registers)
 except Exception as _e:  # pragma: no cover
     warnings.warn(f"steady-cam task not registered: {_e!r}")
+
+try:
+    from microduck_pretrain import followups as _followups  # noqa: F401  (self-registers C5, C3x)
+except Exception as _e:  # pragma: no cover
+    warnings.warn(f"follow-up tasks (C5, C3x) not registered: {_e!r}")
