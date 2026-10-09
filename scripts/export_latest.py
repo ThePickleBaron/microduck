@@ -47,13 +47,24 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     found = 0
     for exp, task in EXPERIMENT_TO_TASK.items():
+        # Several runs can share a label (a short test run and the real run are
+        # both "c3_seed1"). Keep, per label, the run whose last checkpoint has
+        # the highest iteration (newest on a tie), and say which were skipped.
+        best: dict[str, tuple[int, str, Path, Path]] = {}
         for run_dir in sorted((args.logs / exp).glob("*")):
             ckpt = latest_checkpoint(run_dir) if run_dir.is_dir() else None
             if ckpt is None:
                 continue
-            found += 1
             m = re.search(r"(c\d_seed\d+)$", run_dir.name)
             label = m.group(1) if m else run_dir.name
+            it = int(re.findall(r"\d+", ckpt.stem)[-1])
+            key = (it, run_dir.name, run_dir, ckpt)
+            if label in best:
+                loser = min(best[label], key)[2]
+                print(f"note   {label}: {_rel(loser)} ignored (shorter or older run with the same name)")
+            best[label] = max(best.get(label, key), key)
+        for label, (_, _, run_dir, ckpt) in sorted(best.items()):
+            found += 1
             dest = args.out / f"{label}.onnx"
             if dest.exists() and not args.force:
                 print(f"skip   {_rel(dest)} (exists)")
