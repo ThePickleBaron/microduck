@@ -26,8 +26,11 @@ camera is fine (0.7 deg/s). Baseline: `results/steadycam__vendor.json`.
 
 `Steadycam-Walk-Flat-MicroDuck` (`src/microduck_pretrain/steadycam.py`):
 
-- **Warm start from a finished C3 run.** Walking already exists; only camera
-  steadiness is new. 1500 iterations, roughly 45 minutes on the 3090.
+- **Warm start from a finished walker.** Default parent since 2026-10-10:
+  C3x seed N (C3 trained 1500 iterations longer), which beat C3 on tracking
+  and on falls when shoved on all three seeds. Falls back to C3 if no C3x run
+  exists. Walking already exists; only camera steadiness is new. 1500
+  iterations, roughly 45 minutes on the 3090.
 - **Three camera costs** at the `head_camera` site, ramped in from zero over
   the first 600 iterations:
   - `camera_ang_rate` - camera rotation, minus the commanded pan rate
@@ -48,19 +51,19 @@ make standing still pay. Pollen's training notes explain why only the
 *escapable* part of head motion should be priced (the head is ~38% of the
 robot's mass).
 
-## Run it (desktop, after the C3 runs finish)
+## Run it (desktop)
 
 ```bash
 cd ~/microduck-pretraining
 git pull
-uv run python scripts/train_steadycam.py --dry-run     # shows which C3 checkpoint it will use
+uv run python scripts/train_steadycam.py --dry-run     # shows which C3x checkpoint it will use
 uv run python scripts/train_steadycam.py               # seed 1, ~45 min
 uv run python scripts/train_steadycam.py --export      # -> policies/steadycam_seed1.onnx
 ```
 
-`--from logs/rsl_rl/c3_standard/<run>/model_2999.pt` picks a specific C3
-checkpoint (default: the newest run's last checkpoint). `--seeds 1 2 3` runs
-several in a row.
+`--seeds 1 2 3` runs several in a row; seed N starts from C3x seed N.
+`--parent c3` starts from C3 instead. `--from <path>/model_XXXX.pt` picks one
+specific checkpoint for every seed.
 
 ## Watch it
 
@@ -71,7 +74,7 @@ run `steadycam_walk`:
   weights ramp in, then shrink toward 0 as the policy learns. They must never
   be positive.
 - `Episode_Reward/track_linear_velocity` and `air_time` should stay close to
-  the C3 run. If they collapse, the camera costs are too strong.
+  the parent C3x run. If they collapse, the camera costs are too strong.
 - `Episode_Termination/fell_over` should stay near 0.
 
 Watch it walk: `uv run play Steadycam-Walk-Flat-MicroDuck --checkpoint-file logs/rsl_rl/steadycam_walk/<run>/model_1499.pt --num-envs 16`.
@@ -79,14 +82,14 @@ Watch it walk: `uv run play Steadycam-Walk-Flat-MicroDuck --checkpoint-file logs
 ## Measure it
 
 ```bash
-uv run python scripts/eval_steadycam.py --policy policies/c3_seed1.onnx --label c3
+uv run python scripts/eval_steadycam.py --policy policies/c3x_seed1.onnx --label c3x
 uv run python scripts/eval_steadycam.py --policy policies/steadycam_seed1.onnx --label steadycam
-uv run python scripts/eval_steadycam.py --compare results/steadycam__vendor.json results/steadycam__c3.json results/steadycam__steadycam.json
+uv run python scripts/eval_steadycam.py --compare results/steadycam__vendor.json results/steadycam__c3x.json results/steadycam__steadycam.json
 ```
 
 Per shot: shake (deg/s, with the camera's own 1 s average removed so a pan
 is not counted as shake), bob (m/s^2), horizon tilt (deg), falls, and the
-share of time stalled. Success = lower shake and bob than C3 on the moving
+share of time stalled. Success = lower shake and bob than its parent (C3x) on the moving
 shots, with no more falls or stalls.
 
 ## Next steps

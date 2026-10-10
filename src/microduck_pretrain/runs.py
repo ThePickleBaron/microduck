@@ -53,7 +53,7 @@ EXPERIMENTS: dict[str, Experiment] = {
                    start_iteration=3000, order=50),
         Experiment("c3x_extended", "c3x", "C3x · Control", "C3, simply trained longer",
                    start_iteration=3000, order=60),
-        Experiment("steadycam_walk", "steadycam", "Steady-cam", "C3, tuned to keep the camera steady",
+        Experiment("steadycam_walk", "steadycam", "Steady-cam", "C3x, tuned to keep the camera steady",
                    start_iteration=3000, order=70),
     )
 }

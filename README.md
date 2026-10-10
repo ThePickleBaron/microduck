@@ -101,13 +101,14 @@ Details and what to watch: [docs/c5_site_finetune.md](docs/c5_site_finetune.md).
 ## Side project: steady-cam walking
 
 Separate from the experiment (C1-C4 are untouched): a camera-stabilizing
-fine-tune of the C3 walker for a desktop-cameraman duck. It warm-starts from a
-finished C3 run and adds camera shake, bob and horizon-tilt costs at the head
-camera. Run it after the C3 runs finish:
+fine-tune of the walker for a desktop-cameraman duck. It warm-starts from the
+C3x run of the same seed (the best walker) and adds camera shake, bob and
+horizon-tilt costs at the head camera:
 
 ```bash
 uv run python scripts/train_steadycam.py            # ~45 min on the 3090
 uv run python scripts/train_steadycam.py --export   # -> policies/steadycam_seed1.onnx
+uv run python scripts/eval_steadycam.py --policy policies/c3x_seed1.onnx --label c3x          # baseline
 uv run python scripts/eval_steadycam.py --policy policies/steadycam_seed1.onnx --label steadycam
 ```
 

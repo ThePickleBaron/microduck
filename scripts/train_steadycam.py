@@ -1,15 +1,20 @@
-"""Train the steady-cam walking policy by warm-starting from a finished C3 run.
+"""Train the steady-cam walking policy by warm-starting from a finished walker.
 
-    uv run python scripts/train_steadycam.py                 # newest C3 checkpoint, seed 1
-    uv run python scripts/train_steadycam.py --seeds 1 2     # two seeds, one after another
+    uv run python scripts/train_steadycam.py                 # seed 1, from C3x seed 1 (the best walker)
+    uv run python scripts/train_steadycam.py --seeds 1 2     # seed N starts from C3x seed N
+    uv run python scripts/train_steadycam.py --parent c3     # start from C3 instead
     uv run python scripts/train_steadycam.py --from logs/rsl_rl/c3_standard/<run>/model_2999.pt
     uv run python scripts/train_steadycam.py --dry-run       # print what would run
     uv run python scripts/train_steadycam.py --export        # finished runs -> policies/steadycam_seedN.onnx
 
-Why a warm start: walking already exists in C3, so this run only has to learn
+Default parent: C3x (C3 plus 1500 more iterations in C3's world), which beat
+C3 on tracking and on falls when shoved on all three seeds (2026-10-10). If no
+C3x run exists, C3 is used.
+
+Why a warm start: walking already exists in the parent, so this run only has to learn
 camera steadiness on top of it (~1500 iterations, about 45 min on an RTX 3090,
 instead of a 3000-iteration run from scratch). MICRODUCK_WARM_START=1 keeps the
-C3 weights, normalizer and optimizer but restarts the step counter, so the
+parent's weights, normalizer and optimizer but restarts the step counter, so the
 camera-cost curriculum starts at zero. See src/microduck_pretrain/steadycam.py.
 
 Not part of the C1-C4 experiment; logs go to logs/rsl_rl/steadycam_walk/.
@@ -32,6 +37,25 @@ SOURCE_EXPERIMENT = "c3_standard"
 TASK_ID = "Steadycam-Walk-Flat-MicroDuck"
 EXPERIMENT = "steadycam_walk"
 CKPT_RE = re.compile(r"model_(\d+)\.pt$")
+
+
+def parent_checkpoint(parent: str, seed: int) -> Path:
+    """Last checkpoint of the parent condition's run for this seed (the longest
+    run when names collide, as everywhere else). Falls back from c3x to c3."""
+    sys.path.insert(0, str(REPO / "src"))
+    from microduck_pretrain import runs
+
+    found = runs.discover(LOGS)
+    for key in [parent] + (["c3"] if parent == "c3x" else []):
+        run = runs.find(found, key, seed)
+        if run is not None:
+            if key != parent:
+                print(f"[steadycam] no {parent} seed {seed} run; using {key} seed {seed}")
+            return run.checkpoints[run.last]
+    raise SystemExit(
+        f"No {parent} (or c3) seed {seed} run with checkpoints under {LOGS}. "
+        "Pass --from <path to model_XXXX.pt>."
+    )
 
 
 def newest_c3_checkpoint() -> Path:
@@ -93,7 +117,9 @@ def export_runs(force: bool = False) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--from", dest="source", type=Path, help="C3 checkpoint (model_XXXX.pt) to start from")
+    p.add_argument("--from", dest="source", type=Path, help="checkpoint (model_XXXX.pt) to start every seed from")
+    p.add_argument("--parent", choices=["c3x", "c3"], default="c3x",
+                   help="walker to start from; seed N starts from its seed N (default c3x)")
     p.add_argument("--seeds", type=int, nargs="+", default=[1])
     p.add_argument("--num-envs", type=int, default=4096)
     p.add_argument("--iterations", type=int, default=1500)
@@ -105,14 +131,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.export:
         return export_runs(args.force)
 
-    src = args.source or newest_c3_checkpoint()
-    if not src.exists():
-        p.error(f"checkpoint not found: {src}")
-    tag = "warmstart_" + re.sub(r"[^A-Za-z0-9_.-]", "_", f"{src.parent.name}_{src.stem}")
-    print(f"[steadycam] warm start from {src}")
-
     env = dict(os.environ, MICRODUCK_WARM_START="1")
     for seed in args.seeds:
+        src = args.source or parent_checkpoint(args.parent, seed)
+        if not src.exists():
+            p.error(f"checkpoint not found: {src}")
+        tag = "warmstart_" + re.sub(r"[^A-Za-z0-9_.-]", "_", f"{src.parent.name}_{src.stem}")
+        print(f"[steadycam] seed {seed}: warm start from {src}")
         if not args.dry_run:
             load_run, load_ckpt = stage_checkpoint(src, tag)
         else:
