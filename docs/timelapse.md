@@ -22,8 +22,28 @@ training runs.
 | Video | File | What it shows |
 | --- | --- | --- |
 | Learning | `videos/learning_seed1.mp4` | C2, C3 and C4 side by side at each snapshot. A banner shows the training iteration and how much simulated practice that is: 3000 iterations is about 68 days of walking. |
-| Exam | `videos/exam_seed1.mp4` | C1 (vendor, always shown as the yardstick) and the final policy of every condition, facing six challenges in turn: home turf, slippery floor, shoves, a heavy backpack (drawn as an orange block), a bumpy floor, and everything at once. Each panel keeps a running fall count. |
+| Exam | `videos/exam_seed1.mp4` | C1 (vendor, always shown as the yardstick) and the final policy of every condition, facing nine challenges in turn: home turf, then the held-out site's eight in the report's order (slippery floor, shoves, a heavy backpack drawn as an orange block, a bumpy floor, worn gears, a weak battery, a laggy connection, everything at once). |
 | Seeds | `videos/seeds.mp4` | For each condition, its three training seeds on "everything at once". It shows how repeatable each recipe is. |
+
+**What viewers see in every panel (added after the first full run, 2026-10-10):**
+
+- **An orange target disc** with a pointer: where the commands say the duck
+  should be. It restarts from the duck at every new command (every 4 s of
+  walking forward, 2 s of turning), so a duck that keeps up stays on it and a
+  slow or shuffling one is visibly left behind.
+- **"Kept up N%"**: how much of the commanded walking it actually did:
+  distance along the commanded direction (or angle turned) over what was asked,
+  over the whole clip. The first 0.5 s of each command is not judged; a fall
+  counts that command as zero. This is the viewer-friendly cousin of the
+  report's speed error, not the same number.
+- **"Falls N"**, red once it is above zero.
+- **2x speed**: each clip shows twice as much walking as it lasts (12 s per
+  exam challenge), so rare falls and slow drift have time to show. Rendering
+  cost is the same, because only the shown frames are drawn.
+
+The first full run had none of this: every trained duck stood up and walked
+and almost nothing fell in 6 s clips, so the videos could not show the
+differences the report measures.
 
 Each video opens with a title card written for viewers who have not seen the
 project before.
@@ -64,7 +84,8 @@ Measured without a GPU (cloud container, software rendering):
 - The full set of three videos, with every condition and seed, is roughly
   11,000 panel-frames. That is about 50 minutes on one core, and much less
   with several workers or a GPU.
-- The `--quick` set (2 s and 4 s clips, two exam challenges) takes about 5 minutes. Its clips are long enough to see whether a policy walks.
+- The `--quick` set (2 s and 4 s clips at 2x speed; home turf and everything at once) takes about 5 minutes. Its clips are long enough to see whether a policy walks.
+- The full set grew with nine exam challenges: about 1.5 times the first run.
 - The finished videos are small, a few MB each.
 - Videos go in `videos/` and are not committed. They can be rebuilt at any
   time from `logs/`.
