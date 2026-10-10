@@ -57,6 +57,7 @@ uv run python scripts/export_latest.py
 # 3. Evaluate every policy on both sites and build the report (any machine)
 uv run python scripts/evaluate_all.py           # add --quick for a 2-minute look
 #    -> results/report.md, results/report.csv, results/report_gap.png
+uv run python scripts/seed_spread.py --md results/seed_spread.md   # per-seed spread, paired comparisons
 
 # 4. Look at a policy walking (needs a display; WSLg provides one on Windows 11)
 cd third_party/microduck_rl
