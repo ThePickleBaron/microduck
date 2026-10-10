@@ -112,6 +112,21 @@ uv run python scripts/eval_steadycam.py --policy policies/steadycam_seed1.onnx -
 
 Details, baseline numbers and what to watch: [docs/steadycam.md](docs/steadycam.md).
 
+## Timelapse videos
+
+Side-by-side videos for non-technical viewers. They show learning over time,
+every final policy facing the held-out challenges, and seed-to-seed spread.
+They are rebuilt after the fact from the snapshots every run saves every 250
+iterations, so **keep `logs/`**.
+
+```bash
+uv run python scripts/make_timelapse.py --list          # runs that can be filmed
+uv run python scripts/make_timelapse.py all --quick     # ~3 min test -> videos/quick/
+uv run python scripts/make_timelapse.py all             # learning, exam, seeds -> videos/
+```
+
+Details: [docs/timelapse.md](docs/timelapse.md).
+
 ## Repository layout
 
 ```

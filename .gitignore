@@ -11,6 +11,9 @@ wandb/
 outputs/
 *.pt
 
+# Timelapse videos (rebuilt any time from logs/ by scripts/make_timelapse.py)
+videos/
+
 # Downloaded vendor policies (re-fetch with scripts/get_vendor_policy.py)
 policies/vendor/
 

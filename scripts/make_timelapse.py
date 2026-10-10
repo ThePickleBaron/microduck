@@ -1,0 +1,515 @@
+"""Timelapse videos of training, rebuilt after the fact from saved checkpoints.
+
+Nothing is recorded during training. Every run keeps a snapshot of its policy
+every 250 iterations, and this script replays those snapshots in the CPU
+simulator (the same one md-eval uses) and films them from the same camera, so
+every condition, seed and snapshot walks the same course and is comparable.
+
+    uv run python scripts/make_timelapse.py --list           # what can be filmed
+    uv run python scripts/make_timelapse.py learning         # C2/C3/C4 learning to walk, seed 1
+    uv run python scripts/make_timelapse.py exam             # every final policy vs the held-out challenges
+    uv run python scripts/make_timelapse.py seeds            # the three seeds of each condition side by side
+    uv run python scripts/make_timelapse.py all              # all three
+    uv run python scripts/make_timelapse.py all --quick      # small, short test versions (a few minutes)
+
+Options: --seed N (default 1), --out DIR (default videos/), --conditions c2 c3 ...,
+--fast (no shadows, about 2x faster without a GPU), --workers N (parallel filming).
+Writes MP4s (H.264, 25 fps). Rendering uses the GPU when one is reachable
+(EGL, or GLFW under WSLg) and falls back to software OpenGL (libosmesa6,
+installed by setup/setup.sh); the choice is printed at the start.
+
+New kinds of training appear on their own (src/microduck_pretrain/runs.py);
+add a line to runs.EXPERIMENTS to give them a friendly title and caption.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import math
+import os
+import sys
+import time
+from dataclasses import dataclass, replace
+from pathlib import Path
+
+
+SOFTWARE_GL = ("llvmpipe", "softpipe", "swrast", "software")
+
+
+def _pick_gl_backend() -> tuple[str, bool]:
+    """(backend, is_software). A GPU when this machine offers one (egl, then
+    glfw under WSLg), else whichever software renderer works. Respects a
+    MUJOCO_GL already set."""
+    import subprocess
+
+    test = ("import mujoco, OpenGL.GL as gl; "
+            "m = mujoco.MjModel.from_xml_string('<mujoco><worldbody><geom size=\"1\"/></worldbody></mujoco>'); "
+            "r = mujoco.Renderer(m, 64, 64); d = mujoco.MjData(m); r.update_scene(d); r.render(); "
+            "print('GL_RENDERER=' + gl.glGetString(gl.GL_RENDERER).decode(), flush=True); import os; os._exit(0)")
+    preset = os.environ.get("MUJOCO_GL")
+    working: list[tuple[str, bool]] = []
+    for backend in ([preset] if preset else ["egl", "glfw", "osmesa"]):
+        env = {k: v for k, v in os.environ.items() if k != "PYOPENGL_PLATFORM"}
+        env["MUJOCO_GL"] = backend
+        if backend != "glfw":
+            env["PYOPENGL_PLATFORM"] = backend
+        try:
+            out = subprocess.run([sys.executable, "-c", test], env=env, capture_output=True, text=True, timeout=60).stdout
+        except Exception:
+            continue
+        name = next((ln.split("=", 1)[1] for ln in out.splitlines() if ln.startswith("GL_RENDERER=")), None)
+        if name is None:
+            continue
+        software = backend == "osmesa" or any(t in name.lower() for t in SOFTWARE_GL)
+        if not software:
+            return backend, False
+        working.append((backend, True))
+    return working[0] if working else (preset or "osmesa", True)
+
+
+if __name__ == "__main__" and not os.environ.get("MD_TIMELAPSE_WORKER"):
+    _gl, _soft = _pick_gl_backend()
+    os.environ["MUJOCO_GL"] = _gl
+    os.environ["MD_TIMELAPSE_SOFTWARE_GL"] = "1" if _soft else ""
+    os.environ["MD_TIMELAPSE_WORKER"] = "1"  # children inherit the choice
+if os.environ.get("MUJOCO_GL") and os.environ["MUJOCO_GL"] != "glfw":
+    os.environ.setdefault("PYOPENGL_PLATFORM", os.environ["MUJOCO_GL"])
+
+import mujoco  # noqa: E402
+import numpy as np  # noqa: E402
+from PIL import Image, ImageDraw, ImageFont  # noqa: E402
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "src"))
+
+from microduck_pretrain import evaluate as ev  # noqa: E402
+from microduck_pretrain import runs as R  # noqa: E402
+
+FPS = 25
+STEPS_PER_FRAME = int(round(1.0 / FPS / ev.CONTROL_DT))  # 50 Hz control -> 2 steps per frame
+DAYS_PER_ITERATION = 4096 * 24 * ev.CONTROL_DT / 86400  # simulated practice per PPO iteration
+
+# Colours (RGB): a dark broadcast look so the blue MuJoCo floor reads well.
+BG = (17, 21, 28)
+PANEL_BG = (24, 29, 38)
+INK = (236, 239, 244)
+QUIET = (150, 160, 175)
+ACCENT = (255, 140, 66)   # the duck's own orange
+BAD = (235, 87, 87)
+GOOD = (88, 196, 132)
+
+
+@dataclass
+class Layout:
+    panel_w: int = 640
+    image_h: int = 352
+    header_h: int = 56
+    footer_h: int = 40
+    banner_h: int = 64
+    clip_s: float = 3.0       # learning video: seconds per snapshot
+    exam_s: float = 6.0       # exam and seeds videos: seconds per challenge
+    card_s: float = 3.0       # title cards
+    fast: bool = False        # drop shadows (about 2x faster in software rendering)
+
+    @property
+    def panel_h(self) -> int:
+        return self.header_h + self.image_h + self.footer_h
+
+
+FULL = Layout()
+QUICK = Layout(panel_w=320, image_h=184, header_h=32, footer_h=24, banner_h=32, clip_s=1.0, exam_s=1.6, card_s=1.0)
+
+
+def font(px: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.load_default(size=px)
+
+
+# --------------------------------------------------------------------------
+# Challenges (values from sites/held_out.toml; pushes come faster so they show)
+# --------------------------------------------------------------------------
+WALK = [ev.Segment(vx=0.30, seconds=4.0), ev.Segment(wz=0.8, seconds=2.0)]
+
+
+@dataclass
+class Challenge:
+    name: str
+    caption: str
+    scenario: ev.Scenario
+
+
+def challenges() -> list[Challenge]:
+    base = ev.Scenario(name="home", delay_steps=1, commands=WALK)
+    return [
+        Challenge("Home turf", "Flat floor, the conditions every duck trained on", base),
+        Challenge("Slippery floor", "Polished floor: foot friction 0.4", replace(base, name="slippery", foot_friction=0.4)),
+        Challenge("Shoved", "A 0.5 m/s shove every 2 to 3 seconds",
+                  replace(base, name="shoved", push_speed_mps=0.5, push_interval_s=(2.0, 3.0))),
+        Challenge("Heavy backpack", "150 g strapped on, about 20% of its weight", replace(base, name="payload", payload_kg=0.15)),
+        Challenge("Bumpy floor", "Random bumps up to 10 mm", replace(base, name="rough", rough_height_mm=10.0)),
+        Challenge("Everything at once", "Bumps, worn gears, 100 g, slick floor, weak battery",
+                  replace(base, name="combined", rough_height_mm=6.0, scene="backlash", payload_kg=0.10,
+                          foot_friction=0.6, vin=6.8)),
+    ]
+
+
+# --------------------------------------------------------------------------
+# One panel: a policy walking a scenario, filmed
+# --------------------------------------------------------------------------
+@contextlib.contextmanager
+def visible_payload(kg: float):
+    """Make a payload visible: an orange block on the trunk (no extra mass;
+    the evaluator already adds the mass to the trunk)."""
+    if kg <= 0:
+        yield
+        return
+    orig = mujoco.MjSpec.from_file
+
+    def patched(path, *a, **k):
+        spec = orig(path, *a, **k)
+        g = spec.body("trunk_base").add_geom()
+        g.name = "md_payload_visual"
+        g.type = mujoco.mjtGeom.mjGEOM_BOX
+        g.size = [0.025, 0.03, 0.012 + 0.04 * kg]
+        g.pos = [-0.01, 0.0, 0.045]
+        g.rgba = [1.0, 0.55, 0.26, 1.0]
+        g.contype = 0
+        g.conaffinity = 0
+        g.mass = 1e-6
+        return spec
+
+    mujoco.MjSpec.from_file = patched
+    try:
+        yield
+    finally:
+        mujoco.MjSpec.from_file = orig
+
+
+def film(policy: Path, sc: ev.Scenario, seconds: float, lay: Layout, seed: int = 0) -> tuple[list[np.ndarray], list[int]]:
+    """Run `policy` through `sc` for `seconds`; return frames and the running fall count."""
+    rng = np.random.default_rng(seed)
+    with visible_payload(sc.payload_kg):
+        model, data, ctrl = ev.build_sim(sc, rng)
+    model.vis.global_.offwidth = max(model.vis.global_.offwidth, lay.panel_w)
+    model.vis.global_.offheight = max(model.vis.global_.offheight, lay.image_h)
+    if sc.rough_height_mm > 0:  # the bumpy floor lies on the flat one: hide the flat one (looks only)
+        plane = model.geom_type == mujoco.mjtGeom.mjGEOM_PLANE
+        bumps = model.geom_type == mujoco.mjtGeom.mjGEOM_HFIELD
+        if plane.any():
+            model.geom_matid[bumps] = model.geom_matid[plane][0]  # same checkered floor, now bumpy
+        model.geom_rgba[plane, 3] = 0.0
+    software = bool(os.environ.get("MD_TIMELAPSE_SOFTWARE_GL", "1"))
+    if software:
+        model.vis.quality.offsamples = 0  # anti-aliasing is the slowest part in software
+    policy_rt = ev.make_policy(model, data, ctrl, policy, sc.delay_steps)
+    renderer = mujoco.Renderer(model, lay.image_h, lay.panel_w)
+    if software:
+        renderer.scene.flags[mujoco.mjtRndFlag.mjRND_REFLECTION] = 0  # keep shadows: they show footfalls
+        renderer.scene.flags[mujoco.mjtRndFlag.mjRND_SHADOW] = int(not lay.fast)
+    jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "trunk_base_freejoint")
+    qadr, vadr = int(model.jnt_qposadr[jid]), int(model.jnt_dofadr[jid])
+
+    def reset():
+        mujoco.mj_resetData(model, data)
+        data.qpos[qadr: qadr + 3] = [0.0, 0.0, ev.SPAWN_HEIGHT_M]
+        data.qpos[qadr + 3: qadr + 7] = [1, 0, 0, 0]
+        for i, idx in enumerate(policy_rt.joint_qpos_indices):
+            data.qpos[idx] = policy_rt.default_pose[i]
+        ctrl.reset(data.qpos)
+        policy_rt.last_action[:] = 0.0
+        policy_rt.set_position_targets(policy_rt.default_pose)
+        mujoco.mj_forward(model, data)
+
+    cam = mujoco.MjvCamera()
+    cam.distance, cam.azimuth, cam.elevation = 0.85, 145.0, -16.0
+    reset()
+    look = data.qpos[qadr: qadr + 3].copy()
+    look[2] = 0.11
+    cycle = sum(s.seconds for s in sc.commands)
+    frames, falls_seen, falls = [], [], 0
+    next_push = rng.uniform(*sc.push_interval_s) if sc.push_speed_mps > 0 else math.inf
+    last = None
+    n_frames = int(round(seconds * FPS))
+    t = 0.0
+    for _ in range(n_frames):
+        for _ in range(STEPS_PER_FRAME):
+            tt = t % cycle
+            seg = sc.commands[-1]
+            for s in sc.commands:
+                if tt < s.seconds:
+                    seg = s
+                    break
+                tt -= s.seconds
+            if seg is not last:
+                with contextlib.redirect_stdout(open(os.devnull, "w")):
+                    policy_rt.set_vel_cmd(seg.vx, seg.vy, seg.wz)
+                last = seg
+            if t >= next_push:
+                ang = rng.uniform(0, 2 * math.pi)
+                data.qvel[vadr] = sc.push_speed_mps * math.cos(ang)
+                data.qvel[vadr + 1] = sc.push_speed_mps * math.sin(ang)
+                next_push = t + rng.uniform(*sc.push_interval_s)
+            policy_rt.apply_action(policy_rt.infer())
+            for _ in range(ev.DECIMATION):
+                ctrl.update()
+                mujoco.mj_step(model, data)
+            t += ev.CONTROL_DT
+            gz = float(policy_rt.get_projected_gravity()[2])
+            if data.qpos[qadr + 2] < ev.FALL_HEIGHT_M or gz > ev.FALL_TILT_GZ:
+                falls += 1
+                reset()
+                last = None
+        trunk = data.qpos[qadr: qadr + 3]
+        look[:2] += 0.15 * (trunk[:2] - look[:2])
+        cam.lookat[:] = look
+        renderer.update_scene(data, cam)
+        frames.append(renderer.render().copy())
+        falls_seen.append(falls)
+    renderer.close()
+    return frames, falls_seen
+
+
+def _film_job(job):
+    policy, sc, seconds, lay, seed = job
+    frames, falls = film(policy, sc, seconds, lay, seed)
+    return np.stack(frames), falls
+
+
+_POOL = None
+
+
+def film_many(jobs: list) -> list[tuple[list[np.ndarray], list[int]]]:
+    """Film several panels at once, one process per panel (up to the CPU count)."""
+    global _POOL
+    if len(jobs) == 1 or WORKERS <= 1:
+        return [film(*j) for j in jobs]
+    if _POOL is None:
+        import concurrent.futures as cf
+        import multiprocessing as mp
+
+        _POOL = cf.ProcessPoolExecutor(max_workers=WORKERS, mp_context=mp.get_context("spawn"))
+    return [(list(fr), fl) for fr, fl in _POOL.map(_film_job, jobs)]
+
+
+WORKERS = max(1, min(8, (os.cpu_count() or 2) // 2))
+
+
+# --------------------------------------------------------------------------
+# Composition
+# --------------------------------------------------------------------------
+def panel_image(img: np.ndarray, title: str, caption: str, footer_left: str, footer_right: str,
+                lay: Layout, right_color=INK) -> Image.Image:
+    p = Image.new("RGB", (lay.panel_w, lay.panel_h), PANEL_BG)
+    p.paste(Image.fromarray(img), (0, lay.header_h))
+    d = ImageDraw.Draw(p)
+    s = lay.header_h / 56
+    d.text((int(14 * s), int(6 * s)), title, font=font(int(22 * s)), fill=INK)
+    d.text((int(14 * s), int(32 * s)), caption, font=font(int(15 * s)), fill=QUIET)
+    fy = lay.header_h + lay.image_h + int(9 * s)
+    d.text((int(14 * s), fy), footer_left, font=font(int(16 * s)), fill=QUIET)
+    if footer_right:
+        w = d.textlength(footer_right, font=font(int(16 * s)))
+        d.text((lay.panel_w - w - int(14 * s), fy), footer_right, font=font(int(16 * s)), fill=right_color)
+    return p
+
+
+def grid(panels: list[Image.Image], cols: int, banner: str, banner_right: str, lay: Layout) -> np.ndarray:
+    rows = math.ceil(len(panels) / cols)
+    W, H = cols * lay.panel_w, lay.banner_h + rows * lay.panel_h
+    frame = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(frame)
+    s = lay.banner_h / 64
+    d.text((int(18 * s), int(16 * s)), banner, font=font(int(28 * s)), fill=INK)
+    if banner_right:
+        w = d.textlength(banner_right, font=font(int(24 * s)))
+        d.text((W - w - int(18 * s), int(19 * s)), banner_right, font=font(int(24 * s)), fill=ACCENT)
+    for i, p in enumerate(panels):
+        frame.paste(p, ((i % cols) * lay.panel_w, lay.banner_h + (i // cols) * lay.panel_h))
+    return np.asarray(frame)
+
+
+def card(size: tuple[int, int], title: str, lines: list[str], lay: Layout) -> np.ndarray:
+    W, H = size
+    img = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(img)
+    s = lay.banner_h / 64
+    y = int(H * 0.28)
+    d.text((int(80 * s), y), title, font=font(int(52 * s)), fill=INK)
+    y += int(90 * s)
+    for line in lines:
+        d.text((int(80 * s), y), line, font=font(int(26 * s)), fill=QUIET)
+        y += int(42 * s)
+    return np.asarray(img)
+
+
+class Writer:
+    def __init__(self, path: Path):
+        import imageio.v2 as imageio
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = path
+        self.w = imageio.get_writer(str(path), fps=FPS, codec="libx264", quality=8,
+                                    pixelformat="yuv420p", macro_block_size=16)
+        self.n = 0
+
+    def add(self, frame: np.ndarray, repeat: int = 1):
+        for _ in range(repeat):
+            self.w.append_data(frame)
+            self.n += 1
+
+    def close(self):
+        self.w.close()
+        print(f"Wrote {self.path.relative_to(REPO) if self.path.is_relative_to(REPO) else self.path}  "
+              f"({self.n / FPS:.0f} s)")
+
+
+def practice(it: int) -> str:
+    days = it * DAYS_PER_ITERATION
+    return f"{days:.0f} days of practice" if days >= 1.5 else f"{days * 24:.0f} hours of practice"
+
+
+# --------------------------------------------------------------------------
+# Videos
+# --------------------------------------------------------------------------
+def video_learning(found, seed, keys, lay, out: Path):
+    chosen = [r for k in keys if (r := R.find(found, k, seed))]
+    if not chosen:
+        print(f"learning: no runs for {keys} seed {seed}; skipped")
+        return
+    its = sorted({i for r in chosen for i in r.iterations})
+    if lay.panel_w == QUICK.panel_w:
+        its = its[:: max(1, len(its) // 3)][:3] or its
+    cols = min(3, len(chosen))
+    base = challenges()[0].scenario
+    w = Writer(out / f"learning_seed{seed}.mp4")
+    size = (cols * lay.panel_w, lay.banner_h + math.ceil(len(chosen) / cols) * lay.panel_h)
+    w.add(card(size, "How a robot learns to walk", [
+        "Each duck starts knowing nothing and practises in simulation, 4096 copies at once.",
+        "Every few seconds of this video jumps ahead in training to the next saved snapshot.",
+        "Same floor, same camera, same command for every duck: walk forward, then turn.",
+    ], lay), int(lay.card_s * FPS))
+    for it in its:
+        t0 = time.perf_counter()
+        snaps = [r.nearest(it - r.experiment.start_iteration) for r in chosen]
+        filmed = film_many([(R.snapshot_onnx(r, sn), base, lay.clip_s, lay, seed) for r, sn in zip(chosen, snaps)])
+        clips = [(r, sn, fr, fl) for r, sn, (fr, fl) in zip(chosen, snaps, filmed)]
+        for f in range(len(clips[0][2])):
+            panels = [panel_image(fr[f], r.experiment.title, r.experiment.caption,
+                                  f"snapshot {snap + r.experiment.start_iteration:,}",
+                                  f"falls {fl[f]}", lay, BAD if fl[f] else INK)
+                      for r, snap, fr, fl in clips]
+            w.add(grid(panels, cols, f"Training iteration {it:,}", practice(it), lay))
+        print(f"  learning: iteration {it:>5} filmed ({time.perf_counter() - t0:.0f} s)", flush=True)
+    w.close()
+
+
+def final_lineup(found, seed, keys):
+    lineup = []
+    if R.VENDOR_ONNX.exists() and (not keys or "c1" in keys):
+        lineup.append((R.VENDOR, R.VENDOR_ONNX))
+    for r in found:
+        if r.seed != seed or r.experiment.key == "steadycam" or (keys and r.experiment.key not in keys):
+            continue
+        lineup.append((r.experiment, R.snapshot_onnx(r, r.last)))
+    return lineup
+
+
+def video_exam(found, seed, keys, lay, out: Path):
+    lineup = final_lineup(found, seed, keys)
+    if not lineup:
+        print("exam: nothing to film; skipped")
+        return
+    cols = 3 if len(lineup) > 4 else min(2, len(lineup)) if len(lineup) == 4 else len(lineup)
+    size = (cols * lay.panel_w, lay.banner_h + math.ceil(len(lineup) / cols) * lay.panel_h)
+    w = Writer(out / f"exam_seed{seed}.mp4")
+    w.add(card(size, "The final exam", [
+        "Every finished policy faces the same surprises it never trained for.",
+        "A fall resets the duck and adds to its count. Fewer falls and steady walking = ready on delivery.",
+    ], lay), int(lay.card_s * FPS))
+    chs = challenges()[:2] if lay.panel_w == QUICK.panel_w else challenges()
+    for ch in chs:
+        t0 = time.perf_counter()
+        filmed = film_many([(path, ch.scenario, lay.exam_s, lay, seed) for _, path in lineup])
+        clips = [(exp, fr, fl) for (exp, _), (fr, fl) in zip(lineup, filmed)]
+        for f in range(len(clips[0][1])):
+            panels = [panel_image(fr[f], exp.title, exp.caption, ch.name.lower(),
+                                  f"falls {fl[f]}", lay, BAD if fl[f] else GOOD) for exp, fr, fl in clips]
+            w.add(grid(panels, cols, ch.name, ch.caption, lay))
+        print(f"  exam: {ch.name} filmed ({time.perf_counter() - t0:.0f} s)", flush=True)
+    w.close()
+
+
+def video_seeds(found, keys, lay, out: Path):
+    by_exp: dict[str, list] = {}
+    for r in found:
+        if r.seed is None or r.experiment.key == "steadycam" or (keys and r.experiment.key not in keys):
+            continue
+        by_exp.setdefault(r.experiment.folder, []).append(r)
+    if not by_exp:
+        print("seeds: nothing to film; skipped")
+        return
+    ch = challenges()[-1]
+    lay_cols = 3
+    w = None
+    for folder, rs in by_exp.items():
+        rs = sorted(rs, key=lambda r: r.seed)[:3]
+        if w is None:
+            size = (lay_cols * lay.panel_w, lay.banner_h + lay.panel_h)
+            w = Writer(out / "seeds.mp4")
+            w.add(card(size, "Same recipe, three tries", [
+                "Training has luck in it. Each recipe was trained three times from different random starts.",
+                f"Here every try faces the hardest challenge: {ch.caption.lower()}.",
+            ], lay), int(lay.card_s * FPS))
+        t0 = time.perf_counter()
+        filmed = film_many([(R.snapshot_onnx(r, r.last), ch.scenario, lay.exam_s, lay, 1) for r in rs])
+        clips = [(r, fr, fl) for r, (fr, fl) in zip(rs, filmed)]
+        exp = rs[0].experiment
+        for f in range(len(clips[0][1])):
+            panels = [panel_image(fr[f], f"{exp.title}, try {r.seed}", exp.caption, ch.name.lower(),
+                                  f"falls {fl[f]}", lay, BAD if fl[f] else GOOD) for r, fr, fl in clips]
+            while len(panels) < lay_cols:
+                panels.append(Image.new("RGB", (lay.panel_w, lay.panel_h), PANEL_BG))
+            w.add(grid(panels, lay_cols, exp.title, exp.caption, lay))
+        print(f"  seeds: {exp.title} filmed ({time.perf_counter() - t0:.0f} s)", flush=True)
+    w.close()
+
+
+def main(argv: list[str] | None = None) -> int:
+    global WORKERS
+    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p.add_argument("video", nargs="?", choices=["learning", "exam", "seeds", "all"], default="all")
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--conditions", nargs="+", help="condition keys to include, e.g. c2 c3 c4 (default: all found)")
+    p.add_argument("--quick", action="store_true", help="small, short versions to check everything works")
+    p.add_argument("--out", type=Path, default=REPO / "videos")
+    p.add_argument("--list", action="store_true", help="list the runs that can be filmed and exit")
+    p.add_argument("--fast", action="store_true", help="no shadows: about 2x faster with software rendering")
+    p.add_argument("--workers", type=int, help=f"parallel filming processes (default {WORKERS})")
+    args = p.parse_args(argv)
+    if args.workers:
+        WORKERS = max(1, args.workers)
+
+    if args.list:
+        R.main()
+        return 0
+    found = R.discover()
+    lay = replace(QUICK if args.quick else FULL, fast=args.fast)
+    kind = "software" if os.environ.get("MD_TIMELAPSE_SOFTWARE_GL", "1") else "GPU"
+    print(f"Rendering with {os.environ.get('MUJOCO_GL')} ({kind}), {WORKERS} parallel workers", flush=True)
+    out = args.out / "quick" if args.quick else args.out
+    keys = [k.lower() for k in args.conditions] if args.conditions else None
+    t0 = time.perf_counter()
+    if args.video in ("learning", "all"):
+        video_learning(found, args.seed, keys or ["c2", "c3", "c4"], lay, out)
+    if args.video in ("exam", "all"):
+        video_exam(found, args.seed, keys, lay, out)
+    if args.video in ("seeds", "all"):
+        video_seeds(found, keys, lay, out)
+    print(f"Done in {(time.perf_counter() - t0) / 60:.1f} min")
+    if _POOL is not None:
+        _POOL.shutdown()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
