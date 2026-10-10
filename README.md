@@ -121,7 +121,7 @@ iterations, so **keep `logs/`**.
 
 ```bash
 uv run python scripts/make_timelapse.py --list          # runs that can be filmed
-uv run python scripts/make_timelapse.py all --quick     # ~3 min test -> videos/quick/
+uv run python scripts/make_timelapse.py all --quick     # ~5 min test -> videos/quick/
 uv run python scripts/make_timelapse.py all             # learning, exam, seeds -> videos/
 ```
 

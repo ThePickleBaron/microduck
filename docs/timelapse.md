@@ -22,7 +22,7 @@ training runs.
 | Video | File | What it shows |
 | --- | --- | --- |
 | Learning | `videos/learning_seed1.mp4` | C2, C3 and C4 side by side at each snapshot. A banner shows the training iteration and how much simulated practice that is: 3000 iterations is about 68 days of walking. |
-| Exam | `videos/exam_seed1.mp4` | C1 (vendor) and the final policy of every condition, facing six challenges in turn: home turf, slippery floor, shoves, a heavy backpack (drawn as an orange block), a bumpy floor, and everything at once. Each panel keeps a running fall count. |
+| Exam | `videos/exam_seed1.mp4` | C1 (vendor, always shown as the yardstick) and the final policy of every condition, facing six challenges in turn: home turf, slippery floor, shoves, a heavy backpack (drawn as an orange block), a bumpy floor, and everything at once. Each panel keeps a running fall count. |
 | Seeds | `videos/seeds.mp4` | For each condition, its three training seeds on "everything at once". It shows how repeatable each recipe is. |
 
 Each video opens with a title card written for viewers who have not seen the
@@ -64,7 +64,7 @@ Measured without a GPU (cloud container, software rendering):
 - The full set of three videos, with every condition and seed, is roughly
   11,000 panel-frames. That is about 50 minutes on one core, and much less
   with several workers or a GPU.
-- The `--quick` set takes about 2.5 minutes.
+- The `--quick` set (2 s and 4 s clips, two exam challenges) takes about 5 minutes. Its clips are long enough to see whether a policy walks.
 - The finished videos are small, a few MB each.
 - Videos go in `videos/` and are not committed. They can be rebuilt at any
   time from `logs/`.

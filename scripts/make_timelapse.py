@@ -118,7 +118,7 @@ class Layout:
 
 
 FULL = Layout()
-QUICK = Layout(panel_w=320, image_h=184, header_h=32, footer_h=24, banner_h=32, clip_s=1.0, exam_s=1.6, card_s=1.0)
+QUICK = Layout(panel_w=320, image_h=184, header_h=32, footer_h=24, banner_h=32, clip_s=2.0, exam_s=4.0, card_s=1.0)
 
 
 def font(px: int) -> ImageFont.FreeTypeFont:
@@ -405,7 +405,7 @@ def video_learning(found, seed, keys, lay, out: Path):
 
 def final_lineup(found, seed, keys):
     lineup = []
-    if R.VENDOR_ONNX.exists() and (not keys or "c1" in keys):
+    if R.VENDOR_ONNX.exists():  # always shown: the shipped policy is the yardstick
         lineup.append((R.VENDOR, R.VENDOR_ONNX))
     for r in found:
         if r.seed != seed or r.experiment.key == "steadycam" or (keys and r.experiment.key not in keys):
