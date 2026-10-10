@@ -48,6 +48,7 @@ from mjlab.utils.lab_api.math import quat_apply
 import mjlab_microduck.tasks as _md_tasks
 from mjlab_microduck.tasks import mdp as microduck_mdp
 from mjlab_microduck.tasks import microduck_velocity_env_cfg as _vel
+from microduck_pretrain.curricula import _collapse_curricula_to_final  # noqa: F401 (re-exported)
 
 CAMERA_SITE = "head_camera"
 # In the head_camera site frame, +Y is the image's left-right axis: on the walk
@@ -57,6 +58,9 @@ CAMERA_LATERAL_AXIS = (0.0, 1.0, 0.0)
 
 TASK_ID = "Steadycam-Walk-Flat-MicroDuck"
 EXPERIMENT = "steadycam_walk"
+# v2 (2026-10-10): v1 learned to stand still. See make_steadycam_v2_env_cfg.
+TASK_ID_V2 = "Steadycam-Walk-v2-Flat-MicroDuck"
+EXPERIMENT_V2 = "steadycam_walk_v2"
 DEFAULT_ITERATIONS = 1500
 
 # Cinematic command ranges (m/s, m/s, rad/s): slow dolly, truck and pan moves.
@@ -153,6 +157,34 @@ def camera_roll_cost(
     return torch.nan_to_num(lat_w[:, 2] ** 2, nan=0.0)
 
 
+def stall_cost(
+    env,
+    command_name: str = "twist",
+    min_speed: float = 0.05,
+    min_yaw_rate: float = 0.15,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Shortfall of the motion that was asked for, 0..1. Cost >= 0.
+
+    For a commanded walk (|v_cmd| > min_speed): 1 - (v . v_cmd) / |v_cmd|^2,
+    clipped to [0, 1]; 1 = standing still, 0 = at or above the commanded
+    speed. Same for a commanded turn (|wz_cmd| > min_yaw_rate). The larger of
+    the two counts. Zero when nothing (or almost nothing) is commanded, so
+    standing still on a stand command stays free.
+    """
+    asset = env.scene[asset_cfg.name]
+    cmd = env.command_manager.get_command(command_name)
+    v = asset.data.root_link_lin_vel_b[:, :2]
+    wz = asset.data.root_link_ang_vel_b[:, 2]
+    c = cmd[:, :2]
+    spd2 = (c**2).sum(dim=-1)
+    lin = (1.0 - (v * c).sum(dim=-1) / spd2.clamp(min=1e-6)).clamp(0.0, 1.0)
+    lin = torch.where(spd2 > min_speed**2, lin, torch.zeros_like(lin))
+    yaw = (1.0 - wz * cmd[:, 2] / (cmd[:, 2] ** 2).clamp(min=1e-6)).clamp(0.0, 1.0)
+    yaw = torch.where(cmd[:, 2].abs() > min_yaw_rate, yaw, torch.zeros_like(yaw))
+    return torch.nan_to_num(torch.maximum(lin, yaw), nan=0.0)
+
+
 _COST_FUNCS = {
     "camera_ang_rate": camera_ang_rate_cost,
     "camera_lin_acc": camera_lin_acc_cost,
@@ -163,22 +195,6 @@ _COST_FUNCS = {
 # --------------------------------------------------------------------------
 # Env config
 # --------------------------------------------------------------------------
-def _collapse_curricula_to_final(cfg) -> None:
-    """Warm start: pin every inherited velocity curriculum at its final stage.
-
-    Same rule as the vendored velstand task: the loaded policy was trained
-    under the final stage of each curriculum, so restarting them at stage 0
-    would suddenly make its world easier (and its regularizers weaker).
-    """
-    for term in cfg.curriculum.values():
-        for key, val in list(term.params.items()):
-            if isinstance(val, list) and val and all(isinstance(v, dict) and "step" in v for v in val):
-                final = {**val[-1], "step": 0}
-                term.params[key] = [final]
-                if key == "weight_stages" and term.params.get("reward_name") in cfg.rewards:
-                    cfg.rewards[term.params["reward_name"]].weight = final["weight"]
-
-
 def make_steadycam_env_cfg(play: bool = False):
     # The C3 recipe (vendored velocity task, standard randomization), so the
     # warm-started policy sees exactly the world it was trained in.
@@ -211,6 +227,37 @@ def make_steadycam_env_cfg(play: bool = False):
     return cfg
 
 
+# --- v2 ---------------------------------------------------------------------
+# v1 (2026-10-10) stopped walking: by snapshot 250, with the camera costs at a
+# third of their final weight, it stalled on 57-99% of moving shots; from 500
+# on, 98-100%. At cinematic speeds standing still loses little tracking
+# reward (0.12 m/s: 87% of it), and walking also pays every gait regularizer,
+# so any camera cost made standing the better deal. v2 changes the incentive,
+# not just the weights:
+#   * stall_cost at -2.0, full weight from iteration 0: standing still while
+#     asked to move now costs 2 per second, about 3x the camera costs of the
+#     unmodified C3x gait (~0.7 per second at its measured shake).
+#   * linear tracking sharpened (std^2 0.1 -> 0.05): standing at 0.22 m/s
+#     keeps 38% of the tracking reward instead of 62%. Angular tracking is
+#     left alone: it also scores pitch/roll rates, which walking cannot avoid.
+#   * camera costs ramp in over 900 iterations instead of 600.
+STALL_WEIGHT = -2.0
+V2_LIN_TRACK_STD = 0.05**0.5
+RAMP_ITERS_V2 = (0, 300, 600, 900)
+
+
+def make_steadycam_v2_env_cfg(play: bool = False):
+    cfg = make_steadycam_env_cfg(play=play)
+    cfg.rewards["stall"] = RewardTermCfg(func=stall_cost, weight=STALL_WEIGHT, params={})
+    cfg.rewards["track_linear_velocity"].params["std"] = V2_LIN_TRACK_STD
+    for name, final in CAMERA_WEIGHTS.items():
+        cfg.curriculum[f"{name}_weight"].params["weight_stages"] = [
+            {"step": it * _vel.NUM_STEPS_PER_ENV, "weight": final * frac}
+            for it, frac in zip(RAMP_ITERS_V2, (0.0, 1 / 3, 2 / 3, 1.0))
+        ]
+    return cfg
+
+
 def rl_cfg():
     cfg = copy.deepcopy(_vel.MicroduckRlCfg)
     cfg.experiment_name = EXPERIMENT
@@ -220,11 +267,27 @@ def rl_cfg():
     return cfg
 
 
+def rl_cfg_v2():
+    cfg = rl_cfg()
+    cfg.experiment_name = EXPERIMENT_V2
+    cfg.run_name = EXPERIMENT_V2
+    return cfg
+
+
 def register() -> None:
-    """Register the task once (safe to call again)."""
+    """Register the tasks once (safe to call again)."""
     from mjlab.tasks.registry import list_tasks, register_mjlab_task
 
-    if TASK_ID in list_tasks():
+    have = set(list_tasks())
+    if TASK_ID_V2 not in have:
+        register_mjlab_task(
+            task_id=TASK_ID_V2,
+            env_cfg=make_steadycam_v2_env_cfg(),
+            play_env_cfg=make_steadycam_v2_env_cfg(play=True),
+            rl_cfg=rl_cfg_v2(),
+            runner_cls=_md_tasks.MicroduckOnPolicyRunner,
+        )
+    if TASK_ID in have:
         return
     register_mjlab_task(
         task_id=TASK_ID,

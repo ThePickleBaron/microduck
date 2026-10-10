@@ -1,11 +1,12 @@
 """Train the steady-cam walking policy by warm-starting from a finished walker.
 
-    uv run python scripts/train_steadycam.py                 # seed 1, from C3x seed 1 (the best walker)
+    uv run python scripts/train_steadycam.py                 # v2, seed 1, from C3x seed 1 (the best walker)
+    uv run python scripts/train_steadycam.py --version 1     # the original recipe (it learned to stand still)
     uv run python scripts/train_steadycam.py --seeds 1 2     # seed N starts from C3x seed N
     uv run python scripts/train_steadycam.py --parent c3     # start from C3 instead
     uv run python scripts/train_steadycam.py --from logs/rsl_rl/c3_standard/<run>/model_2999.pt
     uv run python scripts/train_steadycam.py --dry-run       # print what would run
-    uv run python scripts/train_steadycam.py --export        # finished runs -> policies/steadycam_seedN.onnx
+    uv run python scripts/train_steadycam.py --export        # -> policies/steadycam_seedN.onnx, steadycam_v2_seedN.onnx
 
 Default parent: C3x (C3 plus 1500 more iterations in C3's world), which beat
 C3 on tracking and on falls when shoved on all three seeds (2026-10-10). If no
@@ -36,6 +37,10 @@ LOGS = REPO / "logs" / "rsl_rl"
 SOURCE_EXPERIMENT = "c3_standard"
 TASK_ID = "Steadycam-Walk-Flat-MicroDuck"
 EXPERIMENT = "steadycam_walk"
+VERSIONS = {  # version -> (task id, log folder, run-name prefix)
+    1: (TASK_ID, EXPERIMENT, "steadycam"),
+    2: ("Steadycam-Walk-v2-Flat-MicroDuck", "steadycam_walk_v2", "steadycam_v2"),
+}
 CKPT_RE = re.compile(r"model_(\d+)\.pt$")
 
 
@@ -85,33 +90,38 @@ def stage_checkpoint(src: Path, tag: str, experiment: str = EXPERIMENT) -> tuple
 
 
 def export_runs(force: bool = False) -> int:
-    """Export the newest checkpoint of each steady-cam run to policies/, through
-    the vendored exporter (bakes in the observation normalizer)."""
-    root = LOGS / EXPERIMENT
+    """Export the newest checkpoint of each steady-cam run (v1 and v2) to
+    policies/, through the vendored exporter (bakes in the normalizer)."""
     out_dir = REPO / "policies"
     out_dir.mkdir(exist_ok=True)
     done = 0
-    for run in sorted(root.glob("*_steadycam_seed*")) if root.exists() else []:
-        ckpts = [(int(m.group(1)), p) for p in run.glob("model_*.pt") if (m := CKPT_RE.search(p.name))]
-        if not ckpts:
-            continue
-        label = re.search(r"(steadycam_seed\d+)$", run.name).group(1)
-        dest = out_dir / f"{label}.onnx"
-        if dest.exists() and not force:
-            print(f"skip   {dest.relative_to(REPO)} (exists; --force to overwrite)")
-            continue
-        ckpt = max(ckpts)[1]
-        print(f"export {ckpt.relative_to(REPO)} -> {dest.relative_to(REPO)}")
-        rc = subprocess.call([
-            sys.executable, str(REPO / "scripts" / "export.py"), TASK_ID,
-            "--checkpoint-file", str(ckpt), "--onnx-file", str(dest), "--num-envs", "1",
-        ], cwd=REPO)
-        if rc != 0:
-            print(f"  export failed ({rc})", file=sys.stderr)
-            return rc
-        done += 1
+    for task_id, experiment, prefix in VERSIONS.values():
+        root = LOGS / experiment
+        best: dict[str, tuple[int, Path]] = {}
+        for run in sorted(root.glob(f"*_{prefix}_seed*")) if root.exists() else []:
+            m = re.search(rf"({re.escape(prefix)}_seed\d+)$", run.name)
+            ckpts = [(int(c.group(1)), p) for p in run.glob("model_*.pt") if (c := CKPT_RE.search(p.name))]
+            if not m or not ckpts:
+                continue
+            last = max(ckpts)
+            if m.group(1) not in best or last[0] >= best[m.group(1)][0]:
+                best[m.group(1)] = last
+        for label, (_, ckpt) in sorted(best.items()):
+            dest = out_dir / f"{label}.onnx"
+            if dest.exists() and not force:
+                print(f"skip   {dest.relative_to(REPO)} (exists; --force to overwrite)")
+                continue
+            print(f"export {ckpt.relative_to(REPO)} -> {dest.relative_to(REPO)}")
+            rc = subprocess.call([
+                sys.executable, str(REPO / "scripts" / "export.py"), task_id,
+                "--checkpoint-file", str(ckpt), "--onnx-file", str(dest), "--num-envs", "1",
+            ], cwd=REPO)
+            if rc != 0:
+                print(f"  export failed ({rc})", file=sys.stderr)
+                return rc
+            done += 1
     if not done:
-        print(f"Nothing new to export under {root}.")
+        print("Nothing new to export.")
     return 0
 
 
@@ -121,6 +131,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--parent", choices=["c3x", "c3"], default="c3x",
                    help="walker to start from; seed N starts from its seed N (default c3x)")
     p.add_argument("--seeds", type=int, nargs="+", default=[1])
+    p.add_argument("--version", type=int, choices=sorted(VERSIONS), default=2,
+                   help="2 (default): stall penalty + sharper tracking; 1: the original recipe")
     p.add_argument("--num-envs", type=int, default=4096)
     p.add_argument("--iterations", type=int, default=1500)
     p.add_argument("--logger", choices=["tensorboard", "wandb"], default="tensorboard")
@@ -131,6 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.export:
         return export_runs(args.force)
 
+    task_id, experiment, prefix = VERSIONS[args.version]
     env = dict(os.environ, MICRODUCK_WARM_START="1")
     for seed in args.seeds:
         src = args.source or parent_checkpoint(args.parent, seed)
@@ -139,15 +152,15 @@ def main(argv: list[str] | None = None) -> int:
         tag = "warmstart_" + re.sub(r"[^A-Za-z0-9_.-]", "_", f"{src.parent.name}_{src.stem}")
         print(f"[steadycam] seed {seed}: warm start from {src}")
         if not args.dry_run:
-            load_run, load_ckpt = stage_checkpoint(src, tag)
+            load_run, load_ckpt = stage_checkpoint(src, tag, experiment)
         else:
             load_run, load_ckpt = tag, src.name
         cmd = [
-            "train", TASK_ID,
+            "train", task_id,
             "--env.scene.num-envs", str(args.num_envs),
             "--agent.max-iterations", str(args.iterations),
             "--agent.seed", str(seed),
-            "--agent.run-name", f"steadycam_seed{seed}",
+            "--agent.run-name", f"{prefix}_seed{seed}",
             "--agent.logger", args.logger,
             "--agent.resume", "True",
             "--agent.load-run", re.escape(load_run),

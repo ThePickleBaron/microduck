@@ -109,7 +109,7 @@ horizon-tilt costs at the head camera:
 uv run python scripts/train_steadycam.py            # ~45 min on the 3090
 uv run python scripts/train_steadycam.py --export   # -> policies/steadycam_seed1.onnx
 uv run python scripts/eval_steadycam.py --policy policies/c3x_seed1.onnx --label c3x          # baseline
-uv run python scripts/eval_steadycam.py --policy policies/steadycam_seed1.onnx --label steadycam
+uv run python scripts/eval_steadycam.py --policy policies/steadycam_v2_seed1.onnx --label steadycam_v2
 ```
 
 Details, baseline numbers and what to watch: [docs/steadycam.md](docs/steadycam.md).

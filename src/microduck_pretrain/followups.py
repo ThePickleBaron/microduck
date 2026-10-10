@@ -28,7 +28,7 @@ from mjlab.managers.metrics_manager import MetricsTermCfg
 import mjlab_microduck.tasks as _md_tasks
 from mjlab_microduck.tasks import microduck_velocity_env_cfg as _vel
 from microduck_pretrain import tasks as _tasks
-from microduck_pretrain.steadycam import _collapse_curricula_to_final
+from microduck_pretrain.curricula import _collapse_curricula_to_final
 
 C5_TASK = "Pretrain-C5-SiteFinetune-Rough-Backlash-MicroDuck"
 C5_EXPERIMENT = "c5_site_finetune"

@@ -98,3 +98,49 @@ def test_eval_runs_and_reports_finite_metrics(zero_policy, tmp_path):
     assert shot["falls"] >= 0
     for key in ("ang_rate_dps", "ang_rate_p95", "lin_acc_mps2", "roll_deg"):
         assert np.isfinite(shot[key]) and shot[key] >= 0, key
+
+
+def _stall_env(v_body, wz, cmd):
+    from types import SimpleNamespace
+
+    import torch
+
+    v = torch.tensor(v_body, dtype=torch.float)
+    data = SimpleNamespace(
+        root_link_lin_vel_b=torch.cat([v, torch.zeros(len(v), 1)], dim=1),
+        root_link_ang_vel_b=torch.stack([torch.zeros(len(wz)), torch.zeros(len(wz)), torch.tensor(wz)], dim=1),
+    )
+    cmds = torch.tensor(cmd, dtype=torch.float)
+    return SimpleNamespace(
+        scene={"robot": SimpleNamespace(data=data)},
+        command_manager=SimpleNamespace(get_command=lambda name: cmds),
+    )
+
+
+def test_stall_cost_prices_standing_still_only_when_asked_to_move():
+    from microduck_pretrain import steadycam
+
+    env = _stall_env(
+        v_body=[(0.0, 0.0), (0.20, 0.0), (0.10, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)],
+        wz=[0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0],
+        cmd=[(0.2, 0, 0), (0.2, 0, 0), (0.2, 0, 0), (0.0, 0, 0), (0.02, 0, 0), (0, 0, 0.5), (0, 0, 0.5)],
+    )
+    cost = steadycam.stall_cost(env).tolist()
+    # standing on a walk command: 1; at speed: 0; half speed: 0.5; standing on a stand
+    # command or a tiny one: free; turning as asked: 0; not turning: 1
+    assert cost == pytest.approx([1.0, 0.0, 0.5, 0.0, 0.0, 0.0, 1.0])
+
+
+@pytest.mark.slow
+def test_v2_adds_stall_and_sharper_tracking_and_leaves_v1_alone():
+    from mjlab.tasks.registry import list_tasks
+
+    from microduck_pretrain import steadycam
+
+    assert steadycam.TASK_ID_V2 in set(list_tasks())
+    v1, v2 = steadycam.make_steadycam_env_cfg(), steadycam.make_steadycam_v2_env_cfg()
+    assert "stall" not in v1.rewards and v2.rewards["stall"].weight == steadycam.STALL_WEIGHT
+    assert v2.rewards["track_linear_velocity"].params["std"] < v1.rewards["track_linear_velocity"].params["std"]
+    assert v2.rewards["track_angular_velocity"].params["std"] == v1.rewards["track_angular_velocity"].params["std"]
+    last = v2.curriculum["camera_roll_weight"].params["weight_stages"][-1]
+    assert last["weight"] == steadycam.CAMERA_WEIGHTS["camera_roll"]

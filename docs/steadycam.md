@@ -51,14 +51,57 @@ make standing still pay. Pollen's training notes explain why only the
 *escapable* part of head motion should be priced (the head is ~38% of the
 robot's mass).
 
+## v1 result (2026-10-10): it learned to stand still
+
+Seed 1 of v1, warm-started from C3x seed 1, on the cinema shots:
+
+| Shot | C3x shake (deg/s) | v1 shake | C3x stalled | v1 stalled |
+| --- | --- | --- | --- | --- |
+| dolly_in | 72 | 1.7 | 0% | 100% |
+| pan | 60 | 3.5 | 0% | 98% |
+| orbit | 60 | 2.0 | 0% | 100% |
+| truck | 3.5 | 0.6 | 100% | 100% |
+
+The camera is steady because the duck stopped. The snapshot sweep
+(`eval_steadycam.py --sweep steadycam`) shows it began at snapshot 250, with
+the camera costs at only a third of their final weight (stalled 57-99%), and
+was complete by 500. At cinematic speeds standing still keeps most of the
+tracking reward (at 0.12 m/s, 87% of it) and skips every gait regularizer, so
+any camera cost tipped the balance. The weights had been sized against the
+vendor policy walking at 0.3 m/s, a faster gait than these shots ask for.
+
+Separately, C3x also stalls on `truck` (0.12 m/s sideways): too slow for these
+walkers to start. v2 trains with a stall penalty, which may fix that too; if
+not, the shot needs a faster command.
+
+## v2: keep walking
+
+`Steadycam-Walk-v2-Flat-MicroDuck`, logs in `logs/rsl_rl/steadycam_walk_v2/`,
+runs named `steadycam_v2_seedN`. Same as v1 plus:
+
+- **`stall` cost, weight -2.0, full strength from iteration 0.** The shortfall
+  of the commanded motion, 0..1: `1 - (v . v_cmd) / |v_cmd|^2` for a walk
+  command over 0.05 m/s, the same for a turn over 0.15 rad/s. Standing still
+  when asked to move costs 2 per second, about three times what the camera
+  costs charge the unmodified C3x gait (~0.7 per second). Standing on a stand
+  command stays free.
+- **Sharper linear tracking** (std^2 0.1 -> 0.05). Angular tracking is
+  unchanged: it also scores pitch and roll rates, which walking cannot avoid.
+- **Camera costs ramp in over 900 iterations** instead of 600.
+
+What to watch in TensorBoard: `Episode_Reward/stall` should stay small (near
+0); if it grows while `camera_*` shrink, it is drifting toward standing again.
+`air_time` should stay near the C3x level.
+
 ## Run it (desktop)
 
 ```bash
 cd ~/microduck-pretraining
 git pull
-uv run python scripts/train_steadycam.py --dry-run     # shows which C3x checkpoint it will use
+uv run python scripts/train_steadycam.py --dry-run     # v2; shows which C3x checkpoint it will use
 uv run python scripts/train_steadycam.py               # seed 1, ~45 min
-uv run python scripts/train_steadycam.py --export      # -> policies/steadycam_seed1.onnx
+uv run python scripts/train_steadycam.py --export      # -> policies/steadycam_v2_seed1.onnx (and v1's)
+uv run python scripts/eval_steadycam.py --sweep steadycam_v2   # every snapshot: did it keep walking?
 ```
 
 `--seeds 1 2 3` runs several in a row; seed N starts from C3x seed N.
@@ -83,8 +126,8 @@ Watch it walk: `uv run play Steadycam-Walk-Flat-MicroDuck --checkpoint-file logs
 
 ```bash
 uv run python scripts/eval_steadycam.py --policy policies/c3x_seed1.onnx --label c3x
-uv run python scripts/eval_steadycam.py --policy policies/steadycam_seed1.onnx --label steadycam
-uv run python scripts/eval_steadycam.py --compare results/steadycam__vendor.json results/steadycam__c3x.json results/steadycam__steadycam.json
+uv run python scripts/eval_steadycam.py --policy policies/steadycam_v2_seed1.onnx --label steadycam_v2
+uv run python scripts/eval_steadycam.py --compare results/steadycam__vendor.json results/steadycam__c3x.json results/steadycam__steadycam.json results/steadycam__steadycam_v2.json
 ```
 
 Per shot: shake (deg/s, with the camera's own 1 s average removed so a pan

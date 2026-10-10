@@ -527,7 +527,7 @@ def final_lineup(found, seed, keys):
     if R.VENDOR_ONNX.exists():  # always shown: the shipped policy is the yardstick
         lineup.append((R.VENDOR, R.VENDOR_ONNX))
     for r in found:
-        if r.seed != seed or r.experiment.key == "steadycam" or (keys and r.experiment.key not in keys):
+        if r.seed != seed or r.experiment.key.startswith("steadycam") or (keys and r.experiment.key not in keys):
             continue
         lineup.append((r.experiment, R.snapshot_onnx(r, r.last)))
     return lineup
@@ -563,7 +563,7 @@ def video_exam(found, seed, keys, lay, out: Path):
 def video_seeds(found, keys, lay, out: Path):
     by_exp: dict[str, list] = {}
     for r in found:
-        if r.seed is None or r.experiment.key == "steadycam" or (keys and r.experiment.key not in keys):
+        if r.seed is None or r.experiment.key.startswith("steadycam") or (keys and r.experiment.key not in keys):
             continue
         by_exp.setdefault(r.experiment.folder, []).append(r)
     if not by_exp:
