@@ -93,6 +93,34 @@ What to watch in TensorBoard: `Episode_Reward/stall` should stay small (near
 0); if it grows while `camera_*` shrink, it is drifting toward standing again.
 `air_time` should stay near the C3x level.
 
+## v2 result (2026-10-10): steadier and still walking
+
+Seed 1, warm-started from C3x seed 1, 1500 iterations (run
+`2026-10-10_17-19-51_steadycam_v2_seed1`). Cinema shots, 60 s each:
+
+| Shot | Shake C3x -> v2 (deg/s) | Bob C3x -> v2 (m/s^2) | Tilt C3x -> v2 (deg) | Stalled C3x -> v2 | Speed error C3x -> v2 (m/s) |
+| --- | --- | --- | --- | --- | --- |
+| dolly_in | 72 -> 40 (-44%) | 3.8 -> 2.9 | 4.7 -> 1.5 | 0% -> 0% | 0.065 -> 0.032 |
+| pan | 60 -> 22 (-64%) | 3.7 -> 2.3 | 3.9 -> 0.7 | 0% -> 0% | 0.010 -> 0.015 |
+| orbit | 60 -> 22 (-63%) | 4.1 -> 2.6 | 3.8 -> 1.1 | 0% -> 0% | 0.077 -> 0.059 |
+| truck | 3.5 -> 17 | 0.2 -> 2.6 | 0.9 -> 1.0 | **100% -> 0%** | 0.097 -> 0.040 |
+| locked_off | 0.3 -> 0.7 | 0.08 -> 0.09 | 0.4 -> 0.2 | - | - |
+
+No falls on any shot. The truck numbers rise only because v2 now performs the
+shot; C3x stood still through it. The stall penalty also halved the dolly
+speed error.
+
+Snapshot sweep (20 s per shot): snapshot 250, before any camera cost, shakes
+more than C3x (dolly 127 deg/s): sharper tracking and the stall penalty make
+the gait more vigorous at first. From 500 on, shake falls steadily (dolly 50,
+43, 37, 39, 41 deg/s) and plateaus after about 1000 iterations. Stall is 0%
+at every snapshot.
+
+Still to do: seeds 2 and 3 (is this repeatable?), and deciding whether ~22-40
+deg/s of residual shake is small enough for phone video with electronic
+stabilization, or worth a v3 with heavier camera weights now that the stall
+penalty protects walking.
+
 ## Run it (desktop)
 
 ```bash
