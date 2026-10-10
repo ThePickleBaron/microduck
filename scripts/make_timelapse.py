@@ -505,6 +505,7 @@ def video_learning(found, seed, keys, lay, out: Path):
         "Every few seconds of this video jumps ahead in training to the next saved snapshot.",
         "Same floor, same camera, same command for every duck: walk forward, then turn.",
         "The orange disc is where the duck was told to be. 'Kept up' is how much of that walking it actually did.",
+        "Every command starts from a standstill, so no duck reaches 100%: compare the panels side by side.",
     ], lay), int(lay.card_s * FPS))
     for it in its:
         t0 = time.perf_counter()
@@ -544,6 +545,7 @@ def video_exam(found, seed, keys, lay, out: Path):
         "Every finished policy faces the same surprises it never trained for.",
         "A fall resets the duck and adds to its count. Fewer falls and steady walking = ready on delivery.",
         "The orange disc is where the duck was told to be. 'Kept up' is how much of that walking it actually did.",
+        "Every command starts from a standstill, so no duck reaches 100%: compare the panels side by side.",
     ], lay), int(lay.card_s * FPS))
     chs = [challenges()[0], challenges()[-1]] if lay.panel_w == QUICK.panel_w else challenges()
     for ch in chs:
@@ -579,6 +581,7 @@ def video_seeds(found, keys, lay, out: Path):
                 "Training has luck in it. Each recipe was trained three times from different random starts.",
                 f"Here every try faces the hardest challenge: {ch.caption.lower()}.",
                 "The orange disc is where the duck was told to be. 'Kept up' is how much of that walking it actually did.",
+        "Every command starts from a standstill, so no duck reaches 100%: compare the panels side by side.",
             ], lay), int(lay.card_s * FPS))
         t0 = time.perf_counter()
         filmed = film_many([(R.snapshot_onnx(r, r.last), ch.scenario, lay.exam_s, lay, 1) for r in rs])
