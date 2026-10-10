@@ -17,6 +17,11 @@ measures what a viewer of the head camera would see:
     uv run python scripts/eval_steadycam.py --policy policies/vendor/alpha_walking.onnx --label vendor
     uv run python scripts/eval_steadycam.py --policy policies/steadycam_seed1.onnx --label steadycam
     uv run python scripts/eval_steadycam.py --compare results/steadycam__vendor.json results/steadycam__steadycam.json
+    uv run python scripts/eval_steadycam.py --sweep steadycam          # every saved snapshot of a run
+
+--sweep replays each checkpoint of a training run (logs/, every 250
+iterations) on a short version of the moving shots, to find where along the
+run the policy got steadier and whether it kept walking.
 
 Writes results/steadycam__<label>.json. Not part of the C1-C4 experiment.
 """
@@ -210,6 +215,37 @@ def compare(paths: list[Path]) -> int:
     return 0
 
 
+def sweep(key: str, seed: int, only: list[str] | None, duration: float, site: Path, out_dir: Path) -> int:
+    sys.path.insert(0, str(REPO / "src"))
+    from microduck_pretrain import runs as R
+
+    run = R.find(R.discover(), key, seed)
+    if run is None:
+        print(f"No {key} seed {seed} run with checkpoints under {R.LOGS}")
+        return 1
+    _, shots = load_site(site)
+    want = set(only or ["dolly_in", "pan", "orbit"])
+    shots = [s for s in shots if s.name in want]
+    rows, report = [], {"run": str(run.path), "key": key, "seed": seed, "duration_s": duration, "snapshots": {}}
+    print(f"Sweeping {run.path.name}: snapshots {run.iterations}, shots {[s.name for s in shots]}, {duration:.0f} s each")
+    for it in run.iterations:
+        onnx = R.snapshot_onnx(run, it)
+        res = {}
+        for sc in shots:
+            sc.duration_s = duration
+            r = run_shot(sc, onnx, 0)
+            res[sc.name] = asdict(r)
+            rows.append((it, sc.name, r))
+            print(f"  snapshot {it:>5}  {sc.name:<9} shake={r.ang_rate_dps:6.1f} deg/s  bob={r.lin_acc_mps2:5.2f} m/s2  "
+                  f"roll={r.roll_deg:4.1f} deg  falls={r.falls}  stalled={r.stall_fraction:.0%}", flush=True)
+        report["snapshots"][str(it)] = res
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / f"steadycam_sweep__{key}_seed{seed}.json"
+    out.write_text(json.dumps(report, indent=2))
+    print(f"\nWrote {out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--policy", type=Path, help="exported walking policy (.onnx)")
@@ -220,7 +256,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--duration", type=float)
     p.add_argument("--out", type=Path, default=REPO / "results")
     p.add_argument("--compare", nargs="+", type=Path, help="print a table from result files instead")
+    p.add_argument("--sweep", metavar="KEY", help="evaluate every snapshot of a run, e.g. steadycam")
+    p.add_argument("--seed", type=int, default=1, help="with --sweep: which run seed (default 1)")
     args = p.parse_args(argv)
+
+    if args.sweep:
+        return sweep(args.sweep, args.seed, args.only, args.duration or 20.0, args.site, args.out)
 
     if args.compare:
         return compare(args.compare)
