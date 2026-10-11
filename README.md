@@ -101,7 +101,8 @@ Details and what to watch: [docs/c5_site_finetune.md](docs/c5_site_finetune.md).
 **C6 (careful walk, added 2026-10-10):** C3x plus rewards that make slow
 commands count, after the stress tests showed every standard policy stands
 still at 0.08-0.15 m/s. `uv run python scripts/train_followup.py c6 --seeds 1 2 3`.
-Details: [docs/c6_careful.md](docs/c6_careful.md).
+Details: [docs/c6_careful.md](docs/c6_careful.md). C6v2 (slow single-axis
+commands, equal yaw weight): `bash scripts/c6v2_batch.sh`.
 
 ## Side project: steady-cam walking
 

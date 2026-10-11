@@ -162,3 +162,51 @@ def test_c6_is_c3x_plus_careful_terms():
     assert set(c6.rewards) - set(c3x.rewards) == {"careful_stall", "track_lin_relative", "track_yaw_relative"}
     assert c6.commands["twist"].ranges == c3x.commands["twist"].ranges
     assert "careful_stall" not in f.make_c3x_env_cfg().rewards  # C3x untouched
+
+
+def test_c6v2_careful_bucket_draws_single_axis_slow_moves(monkeypatch):
+    from microduck_pretrain import followups as f
+
+    n = 20000
+    monkeypatch.setattr(f._md_mdp.VelocityCommandCommandOnly, "_resample_command", lambda self, ids: None)
+    cmd = object.__new__(f.CarefulVelocityCommand)
+    cmd.cfg = SimpleNamespace(rel_careful_envs=0.2)
+    cmd._env = SimpleNamespace(device="cpu")
+    cmd.vel_command_b = torch.full((n, 3), 0.7)
+    cmd.vel_command_w = torch.full((n, 3), 0.7)
+    cmd.is_standing_env = torch.ones(n, dtype=torch.bool)
+    cmd.is_world_env = torch.ones(n, dtype=torch.bool)
+    cmd.is_heading_env = torch.ones(n, dtype=torch.bool)
+    torch.manual_seed(0)
+    cmd._resample_command(torch.arange(n))
+
+    hit = (cmd.vel_command_b != 0.7).any(dim=-1)
+    assert 0.18 < hit.float().mean().item() < 0.22
+    c = cmd.vel_command_b[hit]
+    assert ((c != 0).sum(dim=-1) == 1).all()                       # one axis only
+    lin = c[:, :2].abs().max(dim=-1).values
+    yaw = c[:, 2].abs()
+    assert ((lin == 0) | ((lin >= 0.05) & (lin <= 0.15))).all()
+    assert ((yaw == 0) | ((yaw >= 0.15) & (yaw <= 0.40))).all()
+    for axis in range(3):                                          # all three axes, both signs
+        assert (c[:, axis] > 0).any() and (c[:, axis] < 0).any()
+    assert not cmd.is_standing_env[hit].any() and not cmd.is_world_env[hit].any()
+    assert cmd.is_standing_env[~hit].all()                         # others untouched
+    assert torch.equal(cmd.vel_command_w[hit], cmd.vel_command_b[hit])
+
+
+@pytest.mark.slow
+def test_c6v2_is_c6_plus_careful_commands():
+    from mjlab.tasks.registry import list_tasks
+
+    from microduck_pretrain import followups as f
+
+    assert f.C6V2_TASK in set(list_tasks())
+    c6, v2 = f.make_c6_env_cfg(), f.make_c6v2_env_cfg()
+    assert set(v2.rewards) == set(c6.rewards)
+    assert v2.rewards["track_yaw_relative"].weight == f.C6V2_REL_YAW_WEIGHT
+    assert c6.rewards["track_yaw_relative"].weight == f.C6_REL_YAW_WEIGHT   # C6 untouched
+    assert isinstance(v2.commands["twist"], f.CarefulVelocityCommandCfg)
+    assert v2.commands["twist"].rel_careful_envs == f.C6V2_CAREFUL_ENVS
+    assert v2.commands["twist"].ranges == c6.commands["twist"].ranges
+    assert v2.commands["twist"].rel_turn_in_place_envs == c6.commands["twist"].rel_turn_in_place_envs

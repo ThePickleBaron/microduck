@@ -53,7 +53,7 @@ OUT = REPO / "results" / "stress"
 POLICIES = REPO / "policies"
 FAIL_FALLS_PER_10MIN = 10.0
 FAIL_STALL = 0.5
-ORDER = {"c1": 10, "c2": 20, "c3": 30, "c4": 40, "c5": 50, "c3x": 60, "c6": 65}
+ORDER = {"c1": 10, "c2": 20, "c3": 30, "c4": 40, "c5": 50, "c3x": 60, "c6": 65, "c6v2": 66}
 
 # Each axis: (label, unit, levels, how to apply a level to the nominal scenario)
 AXES = {
@@ -98,14 +98,18 @@ class Runner:
         self.cache.mkdir(parents=True, exist_ok=True)
         self._pool = None
 
-    def run(self, jobs: list[tuple[Path, ev.Scenario, int]], what: str) -> list[dict]:
+    def run(self, jobs: list[tuple[Path, ev.Scenario, int]], what: str,
+            require: tuple[str, ...] = ()) -> list[dict]:
+        """`require`: result keys a cached run must have (older cache entries
+        without them are simulated again)."""
         keys = [_key(p, sc, s) for p, sc, s in jobs]
         results: list[dict | None] = [None] * len(jobs)
         todo = []
         for i, k in enumerate(keys):
             f = self.cache / f"{k}.json"
-            if f.exists() and not self.force:
-                results[i] = json.loads(f.read_text())
+            cached = json.loads(f.read_text()) if f.exists() and not self.force else None
+            if cached is not None and all(r in cached for r in require):
+                results[i] = cached
             else:
                 todo.append(i)
         print(f"[{what}] {len(jobs)} runs, {len(jobs) - len(todo)} cached, {len(todo)} to simulate "
@@ -194,14 +198,14 @@ def _plt():
     return plt
 
 
-COLORS = {"c1": "#7f7f7f", "c2": "#1f77b4", "c3": "#2ca02c", "c4": "#d62728", "c5": "#9467bd", "c3x": "#ff7f0e", "c6": "#17becf"}
+COLORS = {"c1": "#7f7f7f", "c2": "#1f77b4", "c3": "#2ca02c", "c4": "#d62728", "c5": "#9467bd", "c3x": "#ff7f0e", "c6": "#17becf", "c6v2": "#e377c2"}
 
 
 # --------------------------------------------------------------------------
 # 1. Budget curve
 # --------------------------------------------------------------------------
 def test_budget(runner: Runner, conditions: list[str] | None, quick: bool) -> None:
-    keys = conditions or ["c3", "c5", "c3x", "c6"]
+    keys = conditions or ["c3", "c5", "c3x", "c6", "c6v2"]
     found = [r for r in R.discover() if r.experiment.key in keys and r.seed is not None]
     if not found:
         print(f"[budget] no runs with checkpoints for {keys} under {R.LOGS}; skipped")
@@ -382,7 +386,7 @@ def test_careful(runner: Runner, conditions: list[str] | None, quick: bool) -> N
             for seed in range(sc.seeds):
                 plan.append((label, sc.name))
                 jobs.append((path, sc, seed))
-    res = runner.run(jobs, "careful")
+    res = runner.run(jobs, "careful", require=("per_command",))
     acc: dict = {}
     for k, r in zip(plan, res):
         acc.setdefault(k, []).append(r)
@@ -437,6 +441,7 @@ def test_careful(runner: Runner, conditions: list[str] | None, quick: bool) -> N
             stalls = [100 * (r["stall_fraction"] or 0) for r in s]
             lines.append(f"| {g} | {sc.name} | {st.mean(stalls):.0f}% ({min(stalls):.0f}-{max(stalls):.0f}) | "
                          f"{_mean([r['lin_vel_err_mps'] for r in s]):.3f} | {_mean([r['falls_per_10min'] for r in s]):.1f} |")
+    lines += per_command_table(out_dir)
     (OUT / "careful.md").write_text("\n".join(lines) + "\n")
 
     plt = _plt()
@@ -460,6 +465,39 @@ def test_careful(runner: Runner, conditions: list[str] | None, quick: bool) -> N
     fig.savefig(OUT / "careful.png", dpi=150)
     plt.close(fig)
     print(f"[careful] wrote {OUT / 'careful.md'}, careful.csv, careful.png")
+
+
+def _move_name(c: dict) -> str:
+    parts = [f"{k} {c[k]:+.2f}" for k in ("vx", "vy", "wz") if c[k]]
+    return ", ".join(parts) or "stand"
+
+
+def per_command_table(out_dir: Path) -> list[str]:
+    """Stall per careful-site move and condition, pooled over seeds and both
+    scenarios: which moves a policy refuses."""
+    by_cond: dict[str, list[dict]] = {}
+    for f in out_dir.glob("*__careful.json"):
+        rep = json.loads(f.read_text())
+        runs = [r for m in rep["scenarios"].values() for r in m.get("runs", [])]
+        if runs and all(r.get("per_command") for r in runs):
+            by_cond.setdefault(group_of(rep["label"]), []).extend(runs)
+    if not by_cond:
+        return []
+    groups = sorted(by_cond, key=lambda k: ORDER.get(k, 90))
+    tables = {g: ev.per_command_summary(by_cond[g]) for g in groups}
+    moves = {(c["index"], _move_name(c)) for t in tables.values() for c in t}
+    lines = ["", "## Which moves stall", "",
+             "Stalled share of each move, pooled over a condition's seeds and both scenarios "
+             "(achieved fraction of the commanded speed in brackets).", "",
+             "| Move | " + " | ".join(g.upper() for g in groups) + " |",
+             "| --- | " + " | ".join("---" for _ in groups) + " |"]
+    for idx, name in sorted(moves):
+        cells = []
+        for g in groups:
+            c = next((c for c in tables[g] if c["index"] == idx), None)
+            cells.append("" if c is None else f"{100 * c['stall_fraction']:.0f}% ({c['achieved_fraction']:.2f})")
+        lines.append(f"| {name} | " + " | ".join(cells) + " |")
+    return lines
 
 
 def _write_csv(path: Path, rows: list[dict]) -> None:

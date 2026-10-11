@@ -55,6 +55,8 @@ EXPERIMENTS: dict[str, Experiment] = {
                    start_iteration=3000, order=60),
         Experiment("c6_careful", "c6", "C6 · Careful walk", "C3, trained to take slow commands seriously",
                    start_iteration=3000, order=65),
+        Experiment("c6v2_careful", "c6v2", "C6v2 · Careful walk v2", "C6, also practising slow single moves",
+                   start_iteration=3000, order=66),
         Experiment("steadycam_walk", "steadycam", "Steady-cam v1", "C3x, tuned to keep the camera steady",
                    start_iteration=3000, order=70),
         Experiment("steadycam_walk_v2", "steadycam_v2", "Steady-cam v2", "Steady camera, but must keep walking",

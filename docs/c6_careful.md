@@ -117,3 +117,36 @@ No amount of site randomization (C4, C5) touched it.
 - A C6 v2 would raise the relative yaw weight to match the linear one and
   try a stronger stall cost; success = stall under 10% with yaw no worse
   than C3x.
+
+## C6v2 (added 2026-10-11)
+
+Why C6 still stalls: the vendor's training commands are drawn independently
+per axis (vx ±0.4, vy ±0.3, wz ±1.0 rad/s), so a *pure* slow move almost never
+comes up; the vendor's turn-in-place bucket (15% of envs) only covers
+|wz| ≥ 0.4 rad/s. The careful site's 0.3 rad/s turns in place and 0.08 m/s
+sidesteps are outside anything trained. Turns are about 21% of the careful
+site's judged time, close to C6's remaining stall, though that is not yet
+confirmed (the per-move breakdown below will show it).
+
+`Pretrain-C6v2-Careful-Flat-MicroDuck` = C6 plus:
+
+| Change | C6 | C6v2 |
+| --- | --- | --- |
+| Careful-command bucket: share of command resamples that become one slow move on one axis | none | 20%: \|vx\| or \|vy\| 0.05-0.15 m/s, or \|wz\| 0.15-0.40 rad/s, random sign, body frame |
+| `track_yaw_relative` weight | 0.5 | 1.0 (same as linear) |
+
+Same warm start (C3 seed N), budget (1500 iterations), stall cost and world.
+Two changes at once, so C6v2 vs C6 tells whether the pair works, not which
+part did it.
+
+Success: careful-site stall under 10%; held-out yaw error no worse than C3x
+(0.085); speed error no worse than C6.
+
+The evaluator now also records stall per commanded move (`per_command` in
+every run); `stress_tests.py careful` adds a "Which moves stall" table.
+
+Unattended batch (breakdown, 3 seeds, evaluation, copy to OneDrive, about 3 h):
+
+```bash
+cd ~/microduck-pretraining && git pull && bash scripts/c6v2_batch.sh
+```

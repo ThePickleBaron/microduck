@@ -18,6 +18,13 @@ C6  - careful walk (added 2026-10-10): C3x plus two reward terms that make
       tracking reward measures error in m/s, so ignoring a 0.1 m/s command
       costs almost nothing). Same warm start and budget as C3x, so C6 vs C3x
       isolates the reward change. See docs/c6_careful.md.
+C6v2 - careful walk v2 (added 2026-10-11): C6 left 26-30% stall on the
+      careful site and lost turning accuracy. Training almost never asks for a
+      pure slow move: commands are drawn independently per axis, and the
+      vendor's turn-in-place bucket only covers |wz| >= 0.4 rad/s, so a pure
+      0.3 rad/s turn or a pure 0.08 m/s sidestep is essentially untrained.
+      C6v2 = C6 + a "careful command" bucket (single-axis slow moves) + the
+      relative yaw term at the same weight as the linear one.
 
 Neither changes C1-C4: both are new tasks with their own log folders. Train
 them with scripts/train_followup.py.
@@ -54,6 +61,13 @@ C6_YAW_FLOOR = 0.30          # rad/s
 C6_REL_STD2 = 0.25           # exp(-(rel_err)^2 / std2): 50% speed shortfall -> 0.37
 C6_MIN_LIN = 0.05            # m/s: below this a walk command is "stand"
 C6_MIN_YAW = 0.15            # rad/s
+
+C6V2_TASK = "Pretrain-C6v2-Careful-Flat-MicroDuck"
+C6V2_EXPERIMENT = "c6v2_careful"
+C6V2_REL_YAW_WEIGHT = 1.0    # was 0.5 in C6; yaw got worse there
+C6V2_CAREFUL_ENVS = 0.20     # share of command resamples that are a single-axis slow move
+C6V2_LIN_RANGE = (0.05, 0.15)   # m/s, |vx| or |vy|
+C6V2_YAW_RANGE = (0.15, 0.40)   # rad/s, |wz| (the vendor turn-in-place bucket starts at 0.4)
 
 # Terrain promotion on progress (fractions of the distance the commands asked
 # for, measured along the commanded direction).
@@ -239,6 +253,61 @@ def make_c6_env_cfg(play: bool = False):
     return cfg
 
 
+# --------------------------------------------------------------------------
+# C6v2: also train on the slow single-axis moves the careful site asks for
+# --------------------------------------------------------------------------
+from mjlab_microduck.tasks import mdp as _md_mdp  # noqa: E402
+from dataclasses import dataclass as _dataclass  # noqa: E402
+
+
+class CarefulVelocityCommand(_md_mdp.VelocityCommandCommandOnly):
+    """The vendor command (uniform per axis, plus turn-in-place) with an extra
+    bucket: a share of resamples become one slow move on one axis (forward/
+    back, sideways, or turn), in the body frame, never a standing env."""
+
+    def _resample_command(self, env_ids: torch.Tensor) -> None:
+        super()._resample_command(env_ids)
+        p = getattr(self.cfg, "rel_careful_envs", 0.0)
+        if p <= 0.0 or len(env_ids) == 0:
+            return
+        n = len(env_ids)
+        ids = env_ids[torch.rand(n, device=self.device) < p]
+        if len(ids) == 0:
+            return
+        m = len(ids)
+        axis = torch.randint(0, 3, (m,), device=self.device)
+        sign = torch.where(torch.rand(m, device=self.device) < 0.5, -1.0, 1.0)
+        lin = torch.empty(m, device=self.device).uniform_(*C6V2_LIN_RANGE)
+        yaw = torch.empty(m, device=self.device).uniform_(*C6V2_YAW_RANGE)
+        cmd = torch.zeros(m, 3, device=self.device)
+        cmd[:, 0] = torch.where(axis == 0, sign * lin, 0.0)
+        cmd[:, 1] = torch.where(axis == 1, sign * lin, 0.0)
+        cmd[:, 2] = torch.where(axis == 2, sign * yaw, 0.0)
+        self.vel_command_b[ids] = cmd
+        self.vel_command_w[ids] = cmd
+        self.is_standing_env[ids] = False
+        self.is_world_env[ids] = False
+        if hasattr(self, "is_heading_env"):
+            self.is_heading_env[ids] = False
+
+
+@_dataclass(kw_only=True)
+class CarefulVelocityCommandCfg(_md_mdp.VelocityCommandCommandOnlyCfg):
+    rel_careful_envs: float = 0.0
+
+    def build(self, env):
+        return CarefulVelocityCommand(self, env)
+
+
+def make_c6v2_env_cfg(play: bool = False):
+    """C6 + careful-command bucket + equal-weight relative yaw tracking."""
+    cfg = make_c6_env_cfg(play=play)
+    cfg.rewards["track_yaw_relative"].weight = C6V2_REL_YAW_WEIGHT
+    twist = cfg.commands["twist"]
+    cfg.commands["twist"] = CarefulVelocityCommandCfg(**vars(twist), rel_careful_envs=C6V2_CAREFUL_ENVS)
+    return cfg
+
+
 def _rl_cfg(experiment: str):
     cfg = copy.deepcopy(_vel.MicroduckRlCfg)
     cfg.experiment_name = experiment
@@ -253,6 +322,7 @@ FOLLOWUPS = {
     "c5": (C5_TASK, C5_EXPERIMENT, make_c5_env_cfg),
     "c3x": (C3X_TASK, C3X_EXPERIMENT, make_c3x_env_cfg),
     "c6": (C6_TASK, C6_EXPERIMENT, make_c6_env_cfg),
+    "c6v2": (C6V2_TASK, C6V2_EXPERIMENT, make_c6v2_env_cfg),
 }
 
 

@@ -3,6 +3,7 @@
     uv run python scripts/train_followup.py c5 --seeds 1 2 3     # site fine-tune
     uv run python scripts/train_followup.py c3x --seeds 1 2 3    # control: same budget, C3's world
     uv run python scripts/train_followup.py c6 --seeds 1 2 3     # careful walk: C3x + slow-command rewards
+    uv run python scripts/train_followup.py c6v2 --seeds 1 2 3   # careful walk v2: + slow single-axis commands
     uv run python scripts/train_followup.py c5 --dry-run         # show checkpoints and commands
     uv run python scripts/train_followup.py --export             # finished runs -> policies/c5_seedN.onnx, c3x_seedN.onnx
 
@@ -31,6 +32,7 @@ FOLLOWUPS = {
     "c5": ("Pretrain-C5-SiteFinetune-Rough-Backlash-MicroDuck", "c5_site_finetune"),
     "c3x": ("Pretrain-C3X-Standard-Extended-Flat-MicroDuck", "c3x_extended"),
     "c6": ("Pretrain-C6-Careful-Flat-MicroDuck", "c6_careful"),
+    "c6v2": ("Pretrain-C6v2-Careful-Flat-MicroDuck", "c6v2_careful"),
 }
 
 
@@ -54,7 +56,8 @@ def export_runs(force: bool) -> int:
     done = 0
     for key, (task, experiment) in FOLLOWUPS.items():
         root = LOGS / experiment
-        for run in sorted(root.glob(f"*_{key}_seed*")) if root.exists() else []:
+        # Newest run first, so a re-run seed wins over an older interrupted one.
+        for run in sorted(root.glob(f"*_{key}_seed*"), reverse=True) if root.exists() else []:
             ck = last_checkpoint(run)
             m = re.search(rf"({key}_seed\d+)$", run.name)
             if ck is None or m is None:
@@ -79,7 +82,7 @@ def export_runs(force: bool) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("condition", nargs="?", choices=sorted(FOLLOWUPS), help="c5 (site fine-tune), c3x (control) or c6 (careful walk)")
+    p.add_argument("condition", nargs="?", choices=sorted(FOLLOWUPS), help="c5 (site fine-tune), c3x (control), c6 (careful walk) or c6v2 (careful walk v2)")
     p.add_argument("--seeds", type=int, nargs="+", default=[1])
     p.add_argument("--num-envs", type=int, default=4096)
     p.add_argument("--iterations", type=int, default=1500)
@@ -92,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.export:
         return export_runs(args.force)
     if not args.condition:
-        p.error("choose c5 or c3x (or --export)")
+        p.error("choose a condition (or --export)")
 
     task, experiment = FOLLOWUPS[args.condition]
     env = dict(os.environ, MICRODUCK_WARM_START="1")

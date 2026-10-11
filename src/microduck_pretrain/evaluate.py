@@ -279,6 +279,10 @@ class RunResult:
     upright_fraction: float
     stall_fraction: float
     wall_seconds: float
+    # One entry per command segment: the command, commanded-motion steps
+    # measured, steps stalled, and the sum of the achieved fraction of the
+    # command (along the commanded direction; turn rate for pure turns).
+    per_command: list = field(default_factory=list)
 
 
 def run_scenario(sc: Scenario, onnx_path: Path, seed: int) -> RunResult:
@@ -303,13 +307,16 @@ def run_scenario(sc: Scenario, onnx_path: Path, seed: int) -> RunResult:
     schedule = sc.commands
     cycle = sum(s.seconds for s in schedule)
 
-    def command_at(t: float) -> Segment:
+    def command_at(t: float) -> tuple[int, Segment]:
         t = t % cycle
-        for s in schedule:
+        for i, s in enumerate(schedule):
             if t < s.seconds:
-                return s
+                return i, s
             t -= s.seconds
-        return schedule[-1]
+        return len(schedule) - 1, schedule[-1]
+
+    seg_stats = [{"vx": s.vx, "vy": s.vy, "wz": s.wz, "moving": 0, "stalled": 0, "achieved_sum": 0.0}
+                 for s in schedule]
 
     reset()
     steps = int(round(sc.duration_s / CONTROL_DT))
@@ -325,7 +332,7 @@ def run_scenario(sc: Scenario, onnx_path: Path, seed: int) -> RunResult:
 
     for k in range(steps):
         t = k * CONTROL_DT
-        seg = command_at(t)
+        seg_i, seg = command_at(t)
         if seg is not last_cmd:
             with contextlib.redirect_stdout(io.StringIO()):
                 policy.set_vel_cmd(seg.vx, seg.vy, seg.wz)
@@ -368,8 +375,15 @@ def run_scenario(sc: Scenario, onnx_path: Path, seed: int) -> RunResult:
                     moving_steps += 1
                     lin_ok = cmd_lin > 0 and math.hypot(vx, vy) >= STALL_RATIO * cmd_lin
                     yaw_ok = cmd_yaw > 0 and abs(wz) >= STALL_RATIO * cmd_yaw
+                    stats = seg_stats[seg_i]
+                    stats["moving"] += 1
                     if not (lin_ok or yaw_ok):
                         stalled_steps += 1
+                        stats["stalled"] += 1
+                    if cmd_lin > 0:
+                        stats["achieved_sum"] += (vx * seg.vx + vy * seg.vy) / cmd_lin**2
+                    else:
+                        stats["achieved_sum"] += wz / seg.wz
 
     return RunResult(
         sim_seconds=sc.duration_s,
@@ -379,7 +393,25 @@ def run_scenario(sc: Scenario, onnx_path: Path, seed: int) -> RunResult:
         upright_fraction=upright_steps / steps,
         stall_fraction=stalled_steps / moving_steps if moving_steps else float("nan"),
         wall_seconds=time.perf_counter() - wall0,
+        per_command=seg_stats,
     )
+
+
+def per_command_summary(runs: list[dict]) -> list[dict]:
+    """Stall and achieved fraction per commanded move, pooled over runs
+    (run dicts as written by asdict). Stand segments are left out."""
+    out = []
+    pcs = [r.get("per_command") or [] for r in runs]
+    for i in range(max((len(p) for p in pcs), default=0)):
+        segs = [p[i] for p in pcs if i < len(p)]
+        moving = sum(s["moving"] for s in segs)
+        if not moving:
+            continue
+        s0 = segs[0]
+        out.append({"index": i, "vx": s0["vx"], "vy": s0["vy"], "wz": s0["wz"],
+                    "stall_fraction": sum(s["stalled"] for s in segs) / moving,
+                    "achieved_fraction": sum(s["achieved_sum"] for s in segs) / moving})
+    return out
 
 
 def summarize(runs: list[RunResult]) -> dict:
@@ -402,6 +434,7 @@ def summarize(runs: list[RunResult]) -> dict:
         "yaw_rate_err_radps": mean([r.yaw_rate_err_radps for r in runs]),
         "upright_fraction": mean([r.upright_fraction for r in runs]),
         "stall_fraction": mean([r.stall_fraction for r in runs]),
+        "per_command": per_command_summary([asdict(r) for r in runs]),
         "sim_seconds": total_s,
         "runs": [asdict(r) for r in runs],
     }
