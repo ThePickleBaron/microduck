@@ -18,7 +18,7 @@ uv run python scripts/check_policies.py --manifest     # also policies/manifest.
 | Group | What it checks |
 | --- | --- |
 | Contract | Input `obs` float[1,61], output `actions` float[1,14]; ONNX IR version and opset no newer than the reference; only operators the reference uses; the same metadata, with identical joint order, default pose, gains, observation and command layout and action scale (the runtime reads these from the file) |
-| Numerics | Finite actions on zero, typical and extreme observations; action magnitudes within 3x the reference on the same inputs |
+| Numerics | Finite actions on all-zero and extreme (impossible) observations; on about 120 real observations recorded from the reference policy standing, walking and turning in the simulator, action magnitudes within 3x the reference's on the same observations |
 | Cost | Single-thread inference time and file size within 2x the reference (which already runs at 50 Hz on the robot's Radxa Zero 3W) |
 | Behavior | In the CPU simulator, 20 s each: stands still on a zero command from rest (drift under 0.05 m/s, no falls); walks 0.3 m/s (no falls, error under 0.2 m/s, stalled under 50%) |
 
@@ -40,3 +40,13 @@ The manifest follows the layout of Pollen's shipped
 `policies/vendor/manifest.json` (schema 2), adding training provenance (task,
 repo, commit, run, checkpoint, export time) and the check result. The robot
 does not read it yet; it is the record a model channel will need.
+
+## Correction (2026-10-11)
+
+The first version compared action magnitudes on an all-zero observation and
+on random unit noise. The all-zero vector is impossible on the robot (it
+includes a gravity direction of zero length), and it flagged five policies
+that walk well (C2 seeds 1-3, C3x seeds 1-2, steady-cam v2 seed 1) because
+their actions there were 2-8 rad against the reference's 0.57. The range
+check now uses real observations recorded from the reference policy in the
+simulator; all-zero and extreme inputs are checked for finite outputs only.

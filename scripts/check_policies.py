@@ -15,8 +15,10 @@ shipped walk policy (policies/vendor/velstand.onnx) as the reference:
              reference uses; the same metadata keys, with identical joint
              order, default pose, gains, observation and command layout and
              action scale (the runtime reads these from the file).
-  numerics   finite actions for zero, typical and extreme observations; action
-             magnitudes in the same range as the reference on the same inputs.
+  numerics   finite actions for all-zero and extreme (impossible) observations;
+             on real observations, recorded from the reference policy standing,
+             walking and turning in the simulator, action magnitudes in the same
+             range as the reference's on the same observations.
   cost       single-thread inference time and file size, as a ratio to the
              reference. The reference already runs at 50 Hz on the robot, so a
              ratio near 1 means the same budget.
@@ -99,12 +101,53 @@ def _session(path: Path):
     return ort.InferenceSession(str(path), so, providers=["CPUExecutionProvider"])
 
 
+_RECORDED: np.ndarray | None = None
+
+
+def recorded_observations(ref: Path = REFERENCE, every: int = 5) -> np.ndarray:
+    """Real observations: the reference policy standing 4 s, walking 0.3 m/s
+    for 5 s and turning 0.8 rad/s for 3 s in the CPU simulator, every 5th
+    policy step (about 120 states). Unlike random vectors, these are states a
+    deployed policy actually sees, so action magnitudes can be compared."""
+    global _RECORDED
+    if _RECORDED is not None:
+        return _RECORDED
+    import contextlib
+    import io
+
+    from microduck_pretrain import evaluate as ev
+
+    sc = ev.Scenario(name="record", delay_steps=1, duration_s=12.0, seeds=1,
+                     commands=[ev.Segment(seconds=4.0), ev.Segment(vx=0.30, seconds=5.0), ev.Segment(wz=0.8, seconds=3.0)])
+    seen: list[np.ndarray] = []
+    orig = ev.make_policy
+
+    def recording_make_policy(*a, **k):
+        pol = orig(*a, **k)
+        get = pol.get_observations
+
+        def wrapped():
+            o = get()
+            seen.append(np.asarray(o, dtype=np.float32).reshape(-1).copy())
+            return o
+
+        pol.get_observations = wrapped
+        return pol
+
+    ev.make_policy = recording_make_policy
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            ev.run_scenario(sc, ref, 0)
+    finally:
+        ev.make_policy = orig
+    _RECORDED = np.stack(seen[::every]).astype(np.float32)
+    return _RECORDED
+
+
 def _probe_inputs(rng: np.random.Generator) -> dict[str, np.ndarray]:
-    """Zero, typical (unit-scale noise around 0) and extreme observations."""
-    typical = rng.normal(0.0, 1.0, size=(32, OBS_LEN)).astype(np.float32)
-    typical[:, 3:6] = [0.0, 0.0, -1.0]  # projected gravity: upright
+    """Impossible inputs (finiteness only) and recorded real states (range too)."""
     extreme = rng.uniform(-10.0, 10.0, size=(32, OBS_LEN)).astype(np.float32)
-    return {"zero": np.zeros((1, OBS_LEN), np.float32), "typical": typical, "extreme": extreme}
+    return {"zero": np.zeros((1, OBS_LEN), np.float32), "extreme": extreme, "recorded": recorded_observations()}
 
 
 def _run(sess, x: np.ndarray) -> np.ndarray:
@@ -176,8 +219,9 @@ def check(path: Path, ref: Path = REFERENCE, behavior: bool = True) -> Report:
             continue
         finite = bool(np.isfinite(y).all())
         ratio = float(np.abs(y).max() / max(1e-6, np.abs(yr).max()))
-        worst = max(worst, ratio)
-        ok = finite and (name == "extreme" or ratio <= ACTION_RANGE_FACTOR)
+        if name == "recorded":
+            worst = ratio
+        ok = finite and (name != "recorded" or ratio <= ACTION_RANGE_FACTOR)
         rep.add("numerics", f"{name} observations", ok,
                 f"finite={finite}, max|action| {np.abs(y).max():.2f} vs reference {np.abs(yr).max():.2f}")
     rep.info["action_ratio"] = worst
