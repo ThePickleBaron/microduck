@@ -359,8 +359,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.manifest:
         out = REPO / "policies" / "manifest.json"
         write_manifest(reports, out)
-        print(f"Wrote {out} ({sum(r.ok for r in reports)} policies)")
-    return 0 if all(r.ok for r in reports) else 1
+        print(f"Wrote {out} ({sum(r.ok for r in reports)} passing policies; failing ones are left out)")
+    failed = [r for r in reports if not r.ok]
+    print(f"\n{len(reports) - len(failed)} of {len(reports)} policies passed." +
+          ("" if not failed else " Failed: " + ", ".join(Path(r.path).name for r in failed) +
+           ". Exit code 1 so scripts can tell; see the report for why."))
+    return 0 if not failed else 1
 
 
 if __name__ == "__main__":
