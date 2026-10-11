@@ -129,9 +129,16 @@ Mean of 3 seeds, speed error in m/s:
 | C1, C3, C4, C5, C3x (all seeds) | 97-100% / 97-100% |
 | C2 | 81% / 61% |
 
+| Steady-cam v2 (positive control) | 32% (4-63) / 28% (22-38) |
+
 Every policy trained with Pollen's randomization, and the vendor policy,
 stands still when asked for 0.08-0.15 m/s from a standstill. C2 moves part of
-the time. The held-out site (0.25-0.30 m/s) could not see this. Positive
-control still to run: `stress_tests.py careful --conditions steadycam_v2`
-(steady-cam v2 was trained with a stall penalty and walked 0.12 m/s sideways
-with 0% stall in its own evaluation).
+the time. The held-out site (0.25-0.30 m/s) could not see this.
+
+Positive control: steady-cam v2, warm-started from C3x and trained with a
+stall penalty, stalls 4-63% (mean about 30%) where its C3x parents stall
+97-100%, and its speed error halves (0.066 -> 0.034 m/s). So the test does
+detect slow walking, and a stall penalty largely closes the gap. Seed 3 is
+the weakest (63% at home), matching its parent being the most stall-prone at
+cinematic speeds. Its yaw error is higher than the standing policies'
+(0.07-0.10 vs 0.05 rad/s): it turns, but less precisely.
