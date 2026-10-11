@@ -128,6 +128,27 @@ sidesteps are outside anything trained. Turns are about 21% of the careful
 site's judged time, close to C6's remaining stall, though that is not yet
 confirmed (the per-move breakdown below will show it).
 
+**Per-move breakdown (2026-10-11, before C6v2 finished):** only half right.
+Stalled share of each careful-site move, pooled over 3 seeds and both
+scenarios (achieved fraction of the command in brackets):
+
+| Move | C3x | C6 | Steady-cam v2 |
+| --- | --- | --- | --- |
+| vx +0.12 | 100% (0.00) | 0% (1.13) | 0% (1.27) |
+| vx +0.08 | 100% (0.00) | **74%** (0.26) | 81% (0.24) |
+| wz +0.30 | 100% (0.02) | 37% (0.73) | 38% (1.10) |
+| vy +0.08 | 100% (0.00) | 6% (1.26) | 23% (0.54) |
+| vx -0.10 | 100% (0.00) | 5% (0.92) | 17% (0.98) |
+| wz -0.30 | 100% (0.02) | **67%** (0.41) | 36% (0.90) |
+| vx +0.15, vy +0.05 | 95% (0.03) | 0% (1.08) | 0% (1.16) |
+
+Weighted by judged time, C6's 26-28% splits into about half from the slowest
+forward walk (0.08 m/s) and about 40% from the two turns; sidesteps and
+backing up are nearly solved. C6 turns right (−0.3) worse than left. The
+0.08 m/s walk may sit below the slowest gait the policy can hold (it walks
+0.12 m/s at 113% of command, then mostly stops at 0.08). C6v2's bucket does
+include 0.05-0.15 m/s single-axis walks, so it is a fair test of that too.
+
 `Pretrain-C6v2-Careful-Flat-MicroDuck` = C6 plus:
 
 | Change | C6 | C6v2 |
