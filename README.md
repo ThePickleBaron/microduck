@@ -173,6 +173,10 @@ uv run python scripts/reward_screen.py all   # -> results/reward_screen/effects.
 
 Details: [docs/reward_screen.md](docs/reward_screen.md).
 
+Follow-up: a 3x3 response surface of the speed vs turning tracking weights
+on C6v2 (`bash scripts/reward_surface_batch.sh`, ~3 h), to choose the
+operating point. Details: [docs/reward_surface.md](docs/reward_surface.md).
+
 ## Repository layout
 
 ```
