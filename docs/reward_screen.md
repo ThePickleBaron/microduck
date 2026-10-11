@@ -115,7 +115,7 @@ TensorBoard: `--logdir logs/rsl_rl/reward_screen`.
 error is 0.168 m/s at iteration 0, 0.213 (= standing still) from iteration
 250, and stays at 0.213-0.214 at every snapshot through 2999 on all three
 seeds. Its training reward meanwhile climbs from 1.4 to 114 (episodes last
-the full 20 s, falls drop from 98% to 0.1%). C4 settled on standing within
+the full 20 s; the logged fall terminations drop from 97.6 to 0.13). C4 settled on standing within
 250 iterations and got better at standing for the next 2750; more
 iterations would not have changed that. `air_time` (paid only for steps
 lasting 0.125-0.3 s) is 0.012/s for C4 versus ~1.0/s for C3: its feet
@@ -171,14 +171,14 @@ Heatmap: `results/reward_screen/effects.png`.
 1. **Speed and turning are a seesaw.** The two tracking weights dominate
    every accuracy response, in opposite directions. Runs with the linear
    weight high and the angular weight low walk accurately (held-out speed
-   0.03-0.06 m/s) but turn badly (yaw 0.19-0.24 rad/s); the reverse turns well
-   (0.04-0.05) and walks badly. C3's drift and C6's turning regression are
+   0.03-0.06 m/s) but turn badly (yaw 0.21-0.24 rad/s); the reverse turns well
+   (0.05-0.09) and barely walks (0.18-0.21). C3's drift and C6's turning regression are
    the same trade, made by training rather than by us.
 2. **The vendor weights sit near a cliff.** With `track_linear_velocity`
-   at half weight, 4 of 8 runs had essentially stopped walking within 250
-   iterations (nominal speed error 0.19-0.21; standing = 0.213). One run with
-   both tracking weights doubled (pb09) also stopped, so other weights can
-   tip it too.
+   at half weight, all 8 runs walked far worse within 250 iterations
+   (nominal speed error 0.14-0.21; standing still = 0.213) and two had
+   stopped completely. One run with both tracking weights doubled (pb09)
+   also stopped, so other weights can tip it too.
 3. **`air_time` is the stepping incentive.** Doubling it cut slow-move
    stalling by 18 points, the only stall effect beyond both thresholds,
    and helped speed accuracy a little. Consistent with Part 1: stepping,
