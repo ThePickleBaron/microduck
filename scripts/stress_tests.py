@@ -403,6 +403,20 @@ def test_careful(runner: Runner, conditions: list[str] | None, quick: bool) -> N
             rows.append({"policy": label, "condition": group_of(label), "scenario": sc.name, **m,
                          "nominal_speed_err_at_0.3": nom_err})
         (out_dir / f"{label}__careful.json").write_text(json.dumps(rep, indent=2))
+    # The tables cover every policy evaluated so far, not just this call's
+    # (so `careful --conditions steadycam_v2` adds rows instead of replacing them).
+    rows = []
+    for f in sorted(out_dir.glob("*__careful.json"), key=lambda f: (ORDER.get(group_of(f.name.split("__")[0]), 90), f.name)):
+        rep = json.loads(f.read_text())
+        label = rep["label"]
+        nominal_file = REPO / "results" / f"{label}__nominal.json"
+        nom_err = float("nan")
+        if nominal_file.exists():
+            nom_err = json.loads(nominal_file.read_text())["scenarios"]["nominal"]["lin_vel_err_mps"]
+        for name, m in rep["scenarios"].items():
+            m = {k: v for k, v in m.items() if k != "runs"}
+            rows.append({"policy": label, "condition": group_of(label), "scenario": name, **m,
+                         "nominal_speed_err_at_0.3": nom_err})
     _write_csv(OUT / "careful.csv", rows)
 
     lines = ["# Slow-and-careful site", "",
