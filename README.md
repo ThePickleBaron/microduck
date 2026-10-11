@@ -146,6 +146,18 @@ uv run python scripts/stress_tests.py all           # -> results/stress/*.md, *.
 
 Details: [docs/stress_tests.md](docs/stress_tests.md).
 
+## Deployment check
+
+Can each exported policy be installed on the robot as it is? Shape, packaging
+and metadata against the shipped walk policy, numerics, inference cost, and a
+stand/walk check in the simulator:
+
+```bash
+uv run python scripts/check_policies.py --manifest   # -> results/policy_check.md, policies/manifest.json
+```
+
+Details: [docs/deployment_check.md](docs/deployment_check.md).
+
 ## Repository layout
 
 ```
