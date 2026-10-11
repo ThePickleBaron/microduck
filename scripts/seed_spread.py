@@ -40,7 +40,14 @@ def load(results: Path) -> dict[str, dict]:
     raw: dict[str, dict] = {}
     for f in results.glob("*__*.json"):
         label, site = f.stem.split("__", 1)
-        raw.setdefault(label, {})[site] = json.loads(f.read_text())["scenarios"]
+        if site not in ("held_out", "nominal"):
+            continue  # other result files share the folder (steadycam__*, steadycam_sweep__*)
+        try:
+            rep = json.loads(f.read_text())
+        except json.JSONDecodeError:
+            continue
+        if "scenarios" in rep:
+            raw.setdefault(label, {})[site] = rep["scenarios"]
     out = {}
     for label, sites in raw.items():
         if "held_out" not in sites or "nominal" not in sites:
