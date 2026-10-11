@@ -171,3 +171,30 @@ Unattended batch (breakdown, 3 seeds, evaluation, copy to OneDrive, about 3 h):
 ```bash
 cd ~/microduck-pretraining && git pull && bash scripts/c6v2_batch.sh
 ```
+
+### C6v2 results (2026-10-11, 3 seeds)
+
+| Criterion | Target | C6v2 | Verdict |
+| --- | --- | --- | --- |
+| Careful-site stall | under 10% | **0% on every seed, both scenarios, all 7 moves** (C6 26% / 30%) | **Met** |
+| Held-out yaw error | no worse than C3x (0.085) | 0.110 ± 0.016 (C6 0.129) | **Not met.** Better than C6 on 3/3 seeds, still worse than C3x on 3/3 |
+| Speed error | no worse than C6 | nominal 0.022 vs 0.020; held-out combined 0.053 vs 0.041 | **Slightly worse** on 3/3 seeds, still far better than C3x (0.090 / 0.098) |
+
+Per move (achieved fraction of the command): vx +0.08 0% stall (1.22),
+wz +0.30 0% (1.23), wz −0.30 0% (1.11), vy +0.08 0% (1.36). It now does every
+slow move, and tends to overshoot the slowest ones by 10-36%: a 0.08 m/s
+command gives about 0.10 m/s. That looks like a minimum comfortable gait speed
+near 0.1 m/s rather than refusal. Careful-site speed error 0.019 / 0.024
+(C6 0.025 / 0.030).
+
+Other: falls when bumped 5.6 ± 3.8 /10 min (C3x 2.8, C6 3.9), noisy across
+snapshots (5.0 at 4250, 11.7 at 4499). Envelope: command delay 40 ms on all
+seeds, bumps 20 mm on all seeds (C3x 25+), friction 0.2 / 0.2 / 0.3. All three
+seeds pass the deployment check.
+
+**Reading:** the slow-move gap was a training-distribution gap. The vendor's
+command sampler almost never asks for a pure slow move, so no reward fix
+alone (C6) could teach it; adding those commands closed it completely. The
+cost relative to C3x is turning accuracy and a little margin on bumps and
+shoves; relative to C6, a little speed accuracy for much better turning and
+zero stalling.
