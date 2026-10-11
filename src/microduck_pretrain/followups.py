@@ -340,6 +340,17 @@ def register() -> None:
             rl_cfg=_rl_cfg(experiment),
             runner_cls=_md_tasks.MicroduckOnPolicyRunner,
         )
+    # The reward-weight screen builds on C3x, so it registers here, once this
+    # module is complete (from tasks.py it could meet a half-imported
+    # followups module, whatever was imported first).
+    try:
+        from microduck_pretrain import reward_screen
+
+        reward_screen.register()
+    except Exception as e:  # pragma: no cover
+        import warnings
+
+        warnings.warn(f"reward-screen task not registered: {e!r}")
 
 
 # Self-register when loaded (same reason as steadycam.py: `import mjlab` loads

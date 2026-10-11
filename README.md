@@ -159,6 +159,20 @@ uv run python scripts/check_policies.py --manifest   # -> results/policy_check.m
 
 Details: [docs/deployment_check.md](docs/deployment_check.md).
 
+## Reward-weight investigation
+
+Which of the vendor reward's 15 weights matter? Reward terms over training
+(from the TensorBoard logs), then a Plackett-Burman screen: 16 short
+fine-tunes with every weight at 0.5x or 2x, plus 4 center runs.
+
+```bash
+bash scripts/reward_screen_batch.sh          # ~3.5 h; or step by step:
+uv run python scripts/reward_terms.py --conditions c3
+uv run python scripts/reward_screen.py all   # -> results/reward_screen/effects.md, effects.png
+```
+
+Details: [docs/reward_screen.md](docs/reward_screen.md).
+
 ## Repository layout
 
 ```
