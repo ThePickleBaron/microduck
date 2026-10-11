@@ -22,3 +22,6 @@ policies/vendor/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Stress-test outputs and run cache (rebuilt by scripts/stress_tests.py)
+results/stress/

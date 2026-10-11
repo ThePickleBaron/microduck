@@ -129,6 +129,18 @@ uv run python scripts/make_timelapse.py all             # learning, exam, seeds 
 
 Details: [docs/timelapse.md](docs/timelapse.md).
 
+## Stress tests (no training needed)
+
+Readiness vs. training budget (every saved snapshot), each policy's breaking
+point under six stresses, and a slow-and-careful site:
+
+```bash
+uv run python scripts/stress_tests.py all --quick   # check it works
+uv run python scripts/stress_tests.py all           # -> results/stress/*.md, *.png
+```
+
+Details: [docs/stress_tests.md](docs/stress_tests.md).
+
 ## Repository layout
 
 ```

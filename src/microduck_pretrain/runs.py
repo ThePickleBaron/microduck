@@ -26,7 +26,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 LOGS = REPO / "logs" / "rsl_rl"
 CACHE = REPO / "videos" / ".cache"
-VENDOR_ONNX = REPO / "policies" / "vendor" / "alpha_walking.onnx"
+VENDOR_ONNX = REPO / "policies" / "vendor" / "velstand.onnx"  # C1, as in evaluate_all.py and the report
 
 NORMALIZER_EPS = 1e-2  # rsl_rl EmpiricalNormalization: (x - mean) / (std + eps)
 CKPT_RE = re.compile(r"model_(\d+)\.pt$")

@@ -1,0 +1,85 @@
+# Slow-and-careful site: the moves commissioning often needs, which the
+# held-out site never asks for (it commands 0.25-0.30 m/s). Added 2026-10-10
+# after steady-cam showed some C3x seeds stand still at cinematic speeds.
+#
+# Every move starts from a standstill, as on a real cell or desk. Speeds are
+# 0.08-0.15 m/s and turns 0.3 rad/s: inside every training range, but well
+# below the 0.25-0.30 m/s the other sites use. The headline metric is stall:
+# the share of commanded-motion time the robot spends not moving.
+
+[site]
+name = "careful"
+description = "Slow, careful moves from a standstill (0.08-0.15 m/s, 0.3 rad/s)."
+
+[defaults]
+scene = "flat"
+foot_friction = 1.0
+payload_kg = 0.0
+vin = 7.4
+vin_drop_gain = 0.1
+delay_steps = 1
+duration_s = 120.0
+seeds = 2
+
+[[commands]]
+vx = 0.12
+seconds = 6.0
+
+[[commands]]
+seconds = 2.0
+
+[[commands]]
+vx = 0.08
+seconds = 6.0
+
+[[commands]]
+seconds = 2.0
+
+[[commands]]
+wz = 0.3
+seconds = 4.0
+
+[[commands]]
+seconds = 2.0
+
+[[commands]]
+vy = 0.08
+seconds = 5.0
+
+[[commands]]
+seconds = 2.0
+
+[[commands]]
+vx = -0.10
+seconds = 5.0
+
+[[commands]]
+seconds = 2.0
+
+[[commands]]
+wz = -0.3
+seconds = 4.0
+
+[[commands]]
+seconds = 2.0
+
+[[commands]]
+vx = 0.15
+vy = 0.05
+seconds = 5.0
+
+[[commands]]
+seconds = 2.0
+
+[[scenario]]
+name = "careful_home"
+description = "Slow moves on the nominal floor."
+
+[[scenario]]
+name = "careful_site"
+description = "Slow moves on the combined held-out site (bumps, worn gears, 100 g, friction 0.6, 6.8 V)."
+rough_height_mm = 6.0
+scene = "backlash"
+payload_kg = 0.10
+foot_friction = 0.6
+vin = 6.8
