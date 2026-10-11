@@ -23,7 +23,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 PAIRS = [("c5", "c3x", "site fine-tune vs control: same parent, same extra training"),
          ("c3x", "c3", "extra training vs none"),
-         ("c5", "c3", "site fine-tune vs its parent")]
+         ("c5", "c3", "site fine-tune vs its parent"),
+         ("c6", "c3x", "careful walk vs control: same parent, same extra training")]
 METRICS = [  # key, header, format
     ("nom", "Nominal speed err (m/s)", "{:.3f}"),
     ("comb", "Held-out combined speed err (m/s)", "{:.3f}"),

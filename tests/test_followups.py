@@ -97,3 +97,68 @@ class TestFollowupCfgs:
         assert set(c3x.rewards) == set(c3.rewards)
         assert c3x.commands["twist"].ranges == c3.commands["twist"].ranges
         assert list(c3x.observations["actor"].terms) == list(c3.observations["actor"].terms)
+
+
+def _c6_env(v_xy, wz, cmd, steps_in=5):
+    from types import SimpleNamespace
+
+    data = SimpleNamespace(
+        root_link_lin_vel_b=torch.cat([torch.tensor(v_xy, dtype=torch.float), torch.zeros(len(v_xy), 1)], dim=1),
+        root_link_ang_vel_b=torch.stack([torch.zeros(len(wz)), torch.zeros(len(wz)), torch.tensor(wz)], dim=1),
+    )
+    cmds = torch.tensor(cmd, dtype=torch.float)
+    return SimpleNamespace(
+        scene={"robot": SimpleNamespace(data=data)},
+        command_manager=SimpleNamespace(get_command=lambda name: cmds),
+        step_dt=0.02, common_step_counter=0,
+        episode_length_buf=torch.full((len(v_xy),), steps_in),
+    )
+
+
+def test_c6_rewards_make_slow_commands_count():
+    from microduck_pretrain import followups as f
+
+    # 0: asked 0.08 m/s, standing        1: asked 0.08, doing 0.08
+    # 2: asked 0.40, doing 0.30           3: asked to stand, standing
+    # 4: asked to turn 0.3 rad/s, not     5: asked to turn 0.3, turning 0.3
+    env = _c6_env(
+        v_xy=[(0, 0), (0.08, 0), (0.30, 0), (0, 0), (0, 0), (0, 0)],
+        wz=[0, 0, 0, 0, 0, 0.3],
+        cmd=[(0.08, 0, 0), (0.08, 0, 0), (0.40, 0, 0), (0, 0, 0), (0, 0, 0.3), (0, 0, 0.3)],
+    )
+    stall = f.careful_stall_cost(env).tolist()
+    assert stall == pytest.approx([1.0, 0.0, 0.25, 0.0, 1.0, 0.0])
+    lin = f.track_lin_relative(env)
+    # standing on a slow command scores far worse than doing it, and no better
+    # than being 25% slow on a fast one
+    assert lin[0] < 0.1 and lin[1] == pytest.approx(1.0) and lin[2] > lin[0]
+    assert lin[3] == 0.0  # stand command: the relative term is silent
+    yaw = f.track_yaw_relative(env)
+    assert yaw[4] < 0.1 and yaw[5] == pytest.approx(1.0)
+
+
+def test_c6_velocity_is_smoothed_once_per_step():
+    from microduck_pretrain import followups as f
+
+    env = _c6_env(v_xy=[(0.0, 0.0)], wz=[0.0], cmd=[(0.1, 0, 0)])
+    f.smoothed_base_velocity(env)  # initializes at 0
+    env.scene["robot"].data.root_link_lin_vel_b[0, 0] = 0.2
+    env.common_step_counter = 1
+    v1, _ = f.smoothed_base_velocity(env)
+    v2, _ = f.smoothed_base_velocity(env)  # same step: no second update
+    alpha = 0.02 / f.C6_VEL_EMA_S
+    assert v1[0, 0].item() == pytest.approx(0.2 * alpha)
+    assert v2[0, 0].item() == pytest.approx(v1[0, 0].item())
+
+
+@pytest.mark.slow
+def test_c6_is_c3x_plus_careful_terms():
+    from mjlab.tasks.registry import list_tasks
+
+    from microduck_pretrain import followups as f
+
+    assert f.C6_TASK in set(list_tasks())
+    c3x, c6 = f.make_c3x_env_cfg(), f.make_c6_env_cfg()
+    assert set(c6.rewards) - set(c3x.rewards) == {"careful_stall", "track_lin_relative", "track_yaw_relative"}
+    assert c6.commands["twist"].ranges == c3x.commands["twist"].ranges
+    assert "careful_stall" not in f.make_c3x_env_cfg().rewards  # C3x untouched

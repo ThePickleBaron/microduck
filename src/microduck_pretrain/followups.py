@@ -12,6 +12,12 @@ C5  - site fine-tune: warm-start from a finished C3 policy (seed N from C3
       progress along the commanded direction.
 C3x - control: the same warm start and the same number of extra iterations,
       but in C3's own world. Separates "site-specific" from "trained longer".
+C6  - careful walk (added 2026-10-10): C3x plus two reward terms that make
+      slow commands count. The stress tests showed every standard-recipe
+      policy stands still when asked for 0.08-0.15 m/s from rest (the
+      tracking reward measures error in m/s, so ignoring a 0.1 m/s command
+      costs almost nothing). Same warm start and budget as C3x, so C6 vs C3x
+      isolates the reward change. See docs/c6_careful.md.
 
 Neither changes C1-C4: both are new tasks with their own log folders. Train
 them with scripts/train_followup.py.
@@ -22,7 +28,7 @@ from __future__ import annotations
 import copy
 
 import torch
-from mjlab.managers import CurriculumTermCfg
+from mjlab.managers import CurriculumTermCfg, RewardTermCfg
 from mjlab.managers.metrics_manager import MetricsTermCfg
 
 import mjlab_microduck.tasks as _md_tasks
@@ -34,7 +40,20 @@ C5_TASK = "Pretrain-C5-SiteFinetune-Rough-Backlash-MicroDuck"
 C5_EXPERIMENT = "c5_site_finetune"
 C3X_TASK = "Pretrain-C3X-Standard-Extended-Flat-MicroDuck"
 C3X_EXPERIMENT = "c3x_extended"
+C6_TASK = "Pretrain-C6-Careful-Flat-MicroDuck"
+C6_EXPERIMENT = "c6_careful"
 FINETUNE_ITERATIONS = 1500
+
+# C6 reward terms (see make_c6_env_cfg)
+C6_STALL_WEIGHT = -2.0
+C6_REL_LIN_WEIGHT = 1.0
+C6_REL_YAW_WEIGHT = 0.5
+C6_VEL_EMA_S = 0.4           # smoothing of the base velocity the C6 terms judge (s)
+C6_LIN_FLOOR = 0.10          # m/s: relative error is |err| / max(|cmd|, floor)
+C6_YAW_FLOOR = 0.30          # rad/s
+C6_REL_STD2 = 0.25           # exp(-(rel_err)^2 / std2): 50% speed shortfall -> 0.37
+C6_MIN_LIN = 0.05            # m/s: below this a walk command is "stand"
+C6_MIN_YAW = 0.15            # rad/s
 
 # Terrain promotion on progress (fractions of the distance the commands asked
 # for, measured along the commanded direction).
@@ -146,6 +165,80 @@ def make_c3x_env_cfg(play: bool = False):
     return cfg
 
 
+# --------------------------------------------------------------------------
+# C6: rewards that make slow commands count
+# --------------------------------------------------------------------------
+def smoothed_base_velocity(env) -> tuple[torch.Tensor, torch.Tensor]:
+    """Body-frame planar velocity and yaw rate, smoothed with a C6_VEL_EMA_S
+    exponential average (updated once per env step, however many terms ask).
+    A slow gait speeds up and slows down within every step, so judging the
+    instantaneous velocity would punish correct slow walking."""
+    asset = env.scene["robot"]
+    v = asset.data.root_link_lin_vel_b[:, :2]
+    w = asset.data.root_link_ang_vel_b[:, 2]
+    step = getattr(env, "common_step_counter", None)
+    if not hasattr(env, "_md_vel_ema"):
+        env._md_vel_ema = torch.cat([v, w[:, None]], dim=-1).clone()
+        env._md_vel_ema_step = step
+    elif step is None or step != env._md_vel_ema_step:
+        alpha = min(1.0, float(env.step_dt) / C6_VEL_EMA_S)
+        fresh = env.episode_length_buf <= 1
+        cur = torch.cat([v, w[:, None]], dim=-1)
+        env._md_vel_ema = torch.where(fresh[:, None], cur, env._md_vel_ema + alpha * (cur - env._md_vel_ema))
+        env._md_vel_ema_step = step
+    ema = env._md_vel_ema
+    return ema[:, :2], ema[:, 2]
+
+
+def careful_stall_cost(env, command_name: str = "twist") -> torch.Tensor:
+    """Shortfall of the commanded motion, 0..1, on the smoothed velocity.
+    1 = not moving when asked to; 0 = at or above the commanded speed.
+    The larger of the walk and turn shortfalls; free when standing is asked."""
+    v, wz = smoothed_base_velocity(env)
+    cmd = env.command_manager.get_command(command_name)
+    c = cmd[:, :2]
+    spd2 = (c**2).sum(dim=-1)
+    lin = (1.0 - (v * c).sum(dim=-1) / spd2.clamp(min=1e-6)).clamp(0.0, 1.0)
+    lin = torch.where(spd2 > C6_MIN_LIN**2, lin, torch.zeros_like(lin))
+    yaw = (1.0 - wz * cmd[:, 2] / (cmd[:, 2] ** 2).clamp(min=1e-6)).clamp(0.0, 1.0)
+    yaw = torch.where(cmd[:, 2].abs() > C6_MIN_YAW, yaw, torch.zeros_like(yaw))
+    return torch.nan_to_num(torch.maximum(lin, yaw), nan=0.0)
+
+
+def track_lin_relative(env, command_name: str = "twist") -> torch.Tensor:
+    """Speed tracking judged relative to the command: missing a 0.1 m/s
+    command by 0.05 counts like missing a 0.4 m/s command by 0.2. Only when
+    a walk is commanded (else 0)."""
+    v, _ = smoothed_base_velocity(env)
+    c = env.command_manager.get_command(command_name)[:, :2]
+    spd = c.norm(dim=-1)
+    rel = (c - v).norm(dim=-1) / spd.clamp(min=C6_LIN_FLOOR)
+    r = torch.exp(-(rel**2) / C6_REL_STD2)
+    return torch.nan_to_num(torch.where(spd > C6_MIN_LIN, r, torch.zeros_like(r)), nan=0.0)
+
+
+def track_yaw_relative(env, command_name: str = "twist") -> torch.Tensor:
+    """Turn-rate tracking judged relative to the command. Only when a turn
+    is commanded (else 0)."""
+    _, wz = smoothed_base_velocity(env)
+    c = env.command_manager.get_command(command_name)[:, 2]
+    rel = (c - wz).abs() / c.abs().clamp(min=C6_YAW_FLOOR)
+    r = torch.exp(-(rel**2) / C6_REL_STD2)
+    return torch.nan_to_num(torch.where(c.abs() > C6_MIN_YAW, r, torch.zeros_like(r)), nan=0.0)
+
+
+def make_c6_env_cfg(play: bool = False):
+    """C3x plus three terms; C3's world, randomization and command ranges."""
+    cfg = make_c3x_env_cfg(play=play)
+    cfg.rewards["careful_stall"] = RewardTermCfg(func=careful_stall_cost, weight=C6_STALL_WEIGHT,
+                                                 params={"command_name": "twist"})
+    cfg.rewards["track_lin_relative"] = RewardTermCfg(func=track_lin_relative, weight=C6_REL_LIN_WEIGHT,
+                                                      params={"command_name": "twist"})
+    cfg.rewards["track_yaw_relative"] = RewardTermCfg(func=track_yaw_relative, weight=C6_REL_YAW_WEIGHT,
+                                                      params={"command_name": "twist"})
+    return cfg
+
+
 def _rl_cfg(experiment: str):
     cfg = copy.deepcopy(_vel.MicroduckRlCfg)
     cfg.experiment_name = experiment
@@ -159,6 +252,7 @@ FOLLOWUPS = {
     # key: (task id, experiment folder, cfg factory)
     "c5": (C5_TASK, C5_EXPERIMENT, make_c5_env_cfg),
     "c3x": (C3X_TASK, C3X_EXPERIMENT, make_c3x_env_cfg),
+    "c6": (C6_TASK, C6_EXPERIMENT, make_c6_env_cfg),
 }
 
 
