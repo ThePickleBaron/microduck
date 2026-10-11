@@ -66,3 +66,54 @@ uv run python scripts/evaluate_all.py                             # nominal + he
 uv run python scripts/seed_spread.py --md results/seed_spread.md  # includes c6 vs c3x, paired by seed
 uv run python scripts/stress_tests.py all --conditions c6 c3x     # careful, envelope, budget (c3x cached)
 ```
+
+## Results (2026-10-11, 3 seeds)
+
+### Against the criteria
+
+| Criterion | Target | C6 | Verdict |
+| --- | --- | --- | --- |
+| Careful-site stall | under 10% | home 26% (13-34), site 30% (24-38); C3x 100% / 99% | **Not met.** About the same as steady-cam v2 (32% / 28%) |
+| Nominal speed error | within 10% of C3x (0.090) | 0.020 ± 0.000 | **Better** on 3/3 seeds, by 0.067-0.074 m/s |
+| Held-out combined speed error | within 10% of C3x (0.098) | 0.041 ± 0.006 | **Better** on 3/3 seeds, by 0.053-0.064 m/s |
+| Envelope | no narrower than C3x | friction 0.3 / 0.25 / 0.2 (C3x 0.15+ / 0.2 / 0.2); bumps 20 / 25+ / 20 mm (C3x 25+ on all) | **Slightly narrower** on friction (2 seeds) and bumps (2 seeds); payload, delay, shove and battery unchanged |
+
+### What else moved
+
+- **Yaw got worse on every seed.** Held-out mean yaw error 0.129 ± 0.018 rad/s
+  vs C3x 0.085 ± 0.005 (paired +0.018 to +0.063); nominal 0.128 vs 0.052 on
+  seed 1. This is the price the criteria did not anticipate. A likely cause,
+  not tested: the relative yaw term has half the weight of the linear one, so
+  the policy trades turning accuracy for speed accuracy.
+- **Falls:** mixed (better on 1 seed, worse on 1, same on 1). Zero falls on
+  the careful site.
+- **Learned fast.** In the budget curve, nominal speed error falls from 0.097
+  to 0.027 within the first 250 iterations and reaches 0.020 by 4499. C3x
+  over the same stretch only goes from 0.098 to 0.090.
+- **Readiness gap, read carefully.** Held-out minus nominal speed error is
+  0.021 m/s for C6 vs 0.008 for C3x, so the gap in absolute terms grew, but
+  C6 on the held-out site (0.041) is still more than twice as accurate as
+  C3x at home (0.090).
+- **Deployment check:** all three seeds pass (contract, numerics, cost,
+  behavior).
+
+### What it means
+
+The stall target was missed, but the reward change did something larger than
+intended: C3x's 0.09 m/s speed error at normal speed was mostly the same
+leniency. The standard reward pays 90% for standing on a 0.1 m/s command and
+also pays well for walking a bit too slowly at 0.3 m/s. Judging error
+relative to the command fixed most of both. The cost is turning accuracy and
+a little low-friction and rough-floor margin.
+
+For the project's question, this is a commissioning finding: **the vendor's
+reward definition, not the simulator's realism, set the accuracy ceiling.**
+No amount of site randomization (C4, C5) touched it.
+
+### Open
+
+- Remaining 26-30% stall: a per-command breakdown of the careful site (which
+  of the seven moves stalls) is the next diagnostic.
+- A C6 v2 would raise the relative yaw weight to match the linear one and
+  try a stronger stall cost; success = stall under 10% with yaw no worse
+  than C3x.
