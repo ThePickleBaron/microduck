@@ -116,7 +116,30 @@ the gait more vigorous at first. From 500 on, shake falls steadily (dolly 50,
 43, 37, 39, 41 deg/s) and plateaus after about 1000 iterations. Stall is 0%
 at every snapshot.
 
-Still to do: seeds 2 and 3 (is this repeatable?), and deciding whether ~22-40
+### Seeds 2 and 3 (2026-10-10, evening)
+
+Each v2 seed warm-started from the C3x run of the same seed. All three v2
+seeds land in nearly the same place (mean +- standard deviation over seeds):
+
+| Shot | v2 shake (deg/s) | v2 bob (m/s^2) | v2 stalled | v2 speed error (m/s) | C3x parents stalled (seeds 1/2/3) |
+| --- | --- | --- | --- | --- | --- |
+| dolly_in | 39.6 +- 4.1 | 2.92 +- 0.04 | 0 / 0 / 0% | 0.034 | 0 / 0 / 47% |
+| pan | 22.5 +- 1.0 | 2.18 +- 0.12 | 0 / 0 / 0% | 0.015 | 0 / 42 / 99% |
+| orbit | 22.0 +- 0.4 | 2.70 +- 0.13 | 0 / 0 / 0% | 0.033 | 0 / 0 / 65% |
+| truck | 17.6 +- 0.4 | 2.58 +- 0.05 | 0 / 0 / 0% | 0.036 | 100 / 100 / 100% |
+
+No falls on any seed or shot. Where the parent walks, v2 cuts shake by 30-66%
+(dolly 72 -> 40, 71 -> 35, 61 -> 43 deg/s). The parents differ a lot at slow
+cinematic speeds: C3x seed 3 stands still for 47-99% of the slow shots. v2
+never does, on any seed, so its gain is as much reliable slow walking as
+steadiness. (Seed 3's pan shake rises 8 -> 24 deg/s only because its parent
+did not turn.) Seed 3's sweep matches seed 1's shape: a shake spike at
+snapshot 250 (157 deg/s on dolly), then a steady fall to about 40 by 1000.
+
+Side note for the main experiment: the held-out site commands 0.25-0.30 m/s,
+so it never tested the slow commands where C3x seeds 2 and 3 stall.
+
+Still to do: deciding whether ~22-40
 deg/s of residual shake is small enough for phone video with electronic
 stabilization, or worth a v3 with heavier camera weights now that the stall
 penalty protects walking.
