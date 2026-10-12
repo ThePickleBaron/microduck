@@ -53,7 +53,7 @@ OUT = REPO / "results" / "stress"
 POLICIES = REPO / "policies"
 FAIL_FALLS_PER_10MIN = 10.0
 FAIL_STALL = 0.5
-ORDER = {"c1": 10, "c2": 20, "c3": 30, "c4": 40, "c5": 50, "c3x": 60, "c6": 65, "c6v2": 66}
+ORDER = {"c1": 10, "c2": 20, "c3": 30, "c4": 40, "c5": 50, "c3x": 60, "c6": 65, "c6v2": 66, "c6v3": 67, "c6v3t3": 68}
 
 # Each axis: (label, unit, levels, how to apply a level to the nominal scenario)
 AXES = {
@@ -198,14 +198,14 @@ def _plt():
     return plt
 
 
-COLORS = {"c1": "#7f7f7f", "c2": "#1f77b4", "c3": "#2ca02c", "c4": "#d62728", "c5": "#9467bd", "c3x": "#ff7f0e", "c6": "#17becf", "c6v2": "#e377c2"}
+COLORS = {"c1": "#7f7f7f", "c2": "#1f77b4", "c3": "#2ca02c", "c4": "#d62728", "c5": "#9467bd", "c3x": "#ff7f0e", "c6": "#17becf", "c6v2": "#e377c2", "c6v3": "#8c564b", "c6v3t3": "#bcbd22"}
 
 
 # --------------------------------------------------------------------------
 # 1. Budget curve
 # --------------------------------------------------------------------------
 def test_budget(runner: Runner, conditions: list[str] | None, quick: bool) -> None:
-    keys = conditions or ["c3", "c5", "c3x", "c6", "c6v2"]
+    keys = conditions or ["c3", "c5", "c3x", "c6", "c6v2", "c6v3", "c6v3t3"]
     found = [r for r in R.discover() if r.experiment.key in keys and r.seed is not None]
     if not found:
         print(f"[budget] no runs with checkpoints for {keys} under {R.LOGS}; skipped")

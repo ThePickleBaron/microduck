@@ -4,6 +4,7 @@
     uv run python scripts/train_followup.py c3x --seeds 1 2 3    # control: same budget, C3's world
     uv run python scripts/train_followup.py c6 --seeds 1 2 3     # careful walk: C3x + slow-command rewards
     uv run python scripts/train_followup.py c6v2 --seeds 1 2 3   # careful walk v2: + slow single-axis commands
+    uv run python scripts/train_followup.py c6v3 --seeds 1 2 3   # v3: C6v2 with turning tracking x2 (x3: c6v3t3)
     uv run python scripts/train_followup.py c5 --dry-run         # show checkpoints and commands
     uv run python scripts/train_followup.py --export             # finished runs -> policies/c5_seedN.onnx, c3x_seedN.onnx
 
@@ -33,6 +34,8 @@ FOLLOWUPS = {
     "c3x": ("Pretrain-C3X-Standard-Extended-Flat-MicroDuck", "c3x_extended"),
     "c6": ("Pretrain-C6-Careful-Flat-MicroDuck", "c6_careful"),
     "c6v2": ("Pretrain-C6v2-Careful-Flat-MicroDuck", "c6v2_careful"),
+    "c6v3": ("Pretrain-C6v3-Careful-Flat-MicroDuck", "c6v3_careful"),
+    "c6v3t3": ("Pretrain-C6v3t3-Careful-Flat-MicroDuck", "c6v3t3_careful"),
 }
 
 
@@ -82,7 +85,7 @@ def export_runs(force: bool) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("condition", nargs="?", choices=sorted(FOLLOWUPS), help="c5 (site fine-tune), c3x (control), c6 (careful walk) or c6v2 (careful walk v2)")
+    p.add_argument("condition", nargs="?", choices=sorted(FOLLOWUPS), help="c5 (site fine-tune), c3x (control), c6 (careful walk) c6v2 (careful walk v2), c6v3 / c6v3t3 (v2 with turning x2 / x3)")
     p.add_argument("--seeds", type=int, nargs="+", default=[1])
     p.add_argument("--num-envs", type=int, default=4096)
     p.add_argument("--iterations", type=int, default=1500)

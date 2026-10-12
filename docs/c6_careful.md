@@ -198,3 +198,29 @@ alone (C6) could teach it; adding those commands closed it completely. The
 cost relative to C3x is turning accuracy and a little margin on bumps and
 shoves; relative to C6, a little speed accuracy for much better turning and
 zero stalling.
+
+## C6v3: confirming the reward surface (added 2026-10-12)
+
+The reward surface (`docs/reward_surface.md`) predicted, from 250-iteration
+fine-tunes of C6v2, that doubling the turning-tracking pair
+(`track_angular_velocity` 2.0 -> 4.0, `track_yaw_relative` 1.0 -> 2.0) gives
+held-out speed 0.031 m/s and yaw 0.080 rad/s. A prediction from short
+fine-tunes needs confirming under the real recipe: **C6v3** = C6v2 with the
+turning pair x2, trained exactly like C6/C6v2 (warm start from C3 seed N,
+1500 iterations, 3 seeds). **C6v3t3** = turning x3, because the surface's best
+point sat on the edge of the tested range.
+
+Success criteria (decided before training):
+
+1. Held-out mean yaw error at or under C3x's 0.085 rad/s (mean of 3 seeds),
+   and better than C6v2 on 3/3 seeds paired.
+2. Held-out mean speed error at or under 0.036 m/s (C6v2's 0.033 + 10%).
+3. Careful-site stall under 10%.
+4. Falls when bumped and the operating envelope no worse than C6v2's.
+
+C6v3t3 answers whether the optimum lies beyond 2x: it counts if it improves
+yaw over C6v3 while still meeting 2-4.
+
+```bash
+cd ~/microduck-pretraining && git pull && bash scripts/c6v3_batch.sh   # ~6 h; C6v3 results after ~3 h
+```

@@ -26,7 +26,10 @@ PAIRS = [("c5", "c3x", "site fine-tune vs control: same parent, same extra train
          ("c5", "c3", "site fine-tune vs its parent"),
          ("c6", "c3x", "careful walk vs control: same parent, same extra training"),
          ("c6v2", "c6", "careful walk v2 vs v1: slow single-axis commands, equal yaw weight"),
-         ("c6v2", "c3x", "careful walk v2 vs control")]
+         ("c6v2", "c3x", "careful walk v2 vs control"),
+         ("c6v3", "c6v2", "turning tracking x2 vs C6v2 (confirmation of the reward surface)"),
+         ("c6v3", "c3x", "careful walk v3 vs control"),
+         ("c6v3t3", "c6v3", "turning tracking x3 vs x2")]
 METRICS = [  # key, header, format
     ("nom", "Nominal speed err (m/s)", "{:.3f}"),
     ("comb", "Held-out combined speed err (m/s)", "{:.3f}"),

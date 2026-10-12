@@ -176,6 +176,8 @@ Details: [docs/reward_screen.md](docs/reward_screen.md).
 Follow-up: a 3x3 response surface of the speed vs turning tracking weights
 on C6v2 (`bash scripts/reward_surface_batch.sh`, ~3 h), to choose the
 operating point. Details: [docs/reward_surface.md](docs/reward_surface.md).
+Confirmation: C6v3 (C6v2 with turning tracking x2) and C6v3t3 (x3), full
+runs from C3: `bash scripts/c6v3_batch.sh`. Details: [docs/c6_careful.md](docs/c6_careful.md).
 
 ## Repository layout
 

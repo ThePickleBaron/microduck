@@ -69,6 +69,16 @@ C6V2_CAREFUL_ENVS = 0.20     # share of command resamples that are a single-axis
 C6V2_LIN_RANGE = (0.05, 0.15)   # m/s, |vx| or |vy|
 C6V2_YAW_RANGE = (0.15, 0.40)   # rad/s, |wz| (the vendor turn-in-place bucket starts at 0.4)
 
+# C6v3 (added 2026-10-12): C6v2 with the turning-tracking pair scaled up, the
+# operating point the reward surface found (docs/reward_surface.md).
+C6V3_TASK = "Pretrain-C6v3-Careful-Flat-MicroDuck"
+C6V3_EXPERIMENT = "c6v3_careful"
+C6V3_TURN_MULT = 2.0
+C6V3T3_TASK = "Pretrain-C6v3t3-Careful-Flat-MicroDuck"   # same, turning x3: is the optimum beyond 2x?
+C6V3T3_EXPERIMENT = "c6v3t3_careful"
+C6V3T3_TURN_MULT = 3.0
+TURN_PAIR = ("track_angular_velocity", "track_yaw_relative")
+
 # Terrain promotion on progress (fractions of the distance the commands asked
 # for, measured along the commanded direction).
 PROMOTE_FRAC = 0.7
@@ -308,6 +318,19 @@ def make_c6v2_env_cfg(play: bool = False):
     return cfg
 
 
+def make_c6v3_env_cfg(play: bool = False, turn_mult: float = C6V3_TURN_MULT):
+    """C6v2 with both turning-tracking terms (vendor absolute, C6 relative)
+    multiplied by turn_mult; everything else identical to C6v2."""
+    cfg = make_c6v2_env_cfg(play=play)
+    for t in TURN_PAIR:
+        cfg.rewards[t].weight = cfg.rewards[t].weight * turn_mult
+    return cfg
+
+
+def make_c6v3t3_env_cfg(play: bool = False):
+    return make_c6v3_env_cfg(play=play, turn_mult=C6V3T3_TURN_MULT)
+
+
 def _rl_cfg(experiment: str):
     cfg = copy.deepcopy(_vel.MicroduckRlCfg)
     cfg.experiment_name = experiment
@@ -323,6 +346,8 @@ FOLLOWUPS = {
     "c3x": (C3X_TASK, C3X_EXPERIMENT, make_c3x_env_cfg),
     "c6": (C6_TASK, C6_EXPERIMENT, make_c6_env_cfg),
     "c6v2": (C6V2_TASK, C6V2_EXPERIMENT, make_c6v2_env_cfg),
+    "c6v3": (C6V3_TASK, C6V3_EXPERIMENT, make_c6v3_env_cfg),
+    "c6v3t3": (C6V3T3_TASK, C6V3T3_EXPERIMENT, make_c6v3t3_env_cfg),
 }
 
 

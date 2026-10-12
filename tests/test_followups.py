@@ -210,3 +210,22 @@ def test_c6v2_is_c6_plus_careful_commands():
     assert v2.commands["twist"].rel_careful_envs == f.C6V2_CAREFUL_ENVS
     assert v2.commands["twist"].ranges == c6.commands["twist"].ranges
     assert v2.commands["twist"].rel_turn_in_place_envs == c6.commands["twist"].rel_turn_in_place_envs
+
+
+@pytest.mark.slow
+def test_c6v3_is_c6v2_with_turning_scaled():
+    from mjlab.tasks.registry import list_tasks
+
+    from microduck_pretrain import followups as f
+
+    tasks = set(list_tasks())
+    assert f.C6V3_TASK in tasks and f.C6V3T3_TASK in tasks
+    v2, v3, t3 = f.make_c6v2_env_cfg(), f.make_c6v3_env_cfg(), f.make_c6v3t3_env_cfg()
+    for name, term in v2.rewards.items():
+        mult = 1.0
+        if name in f.TURN_PAIR:
+            mult = 2.0
+        assert v3.rewards[name].weight == pytest.approx(mult * term.weight), name
+        assert t3.rewards[name].weight == pytest.approx((3.0 if name in f.TURN_PAIR else 1.0) * term.weight), name
+    assert f.make_c6v2_env_cfg().rewards["track_yaw_relative"].weight == f.C6V2_REL_YAW_WEIGHT   # v2 untouched
+    assert type(v3.commands["twist"]).__name__ == "CarefulVelocityCommandCfg"
