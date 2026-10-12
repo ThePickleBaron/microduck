@@ -58,3 +58,41 @@ Outputs in `results/reward_surface/`: `surface.md` (cell means, fitted
 coefficients, operating point), `surface.png` (contours of each response,
 the objective with the stall/falls limit, and the speed-vs-yaw trade-off),
 `runs.csv`. TensorBoard: `--logdir logs/rsl_rl/reward_surface`.
+
+## Results (2026-10-12)
+
+Held-out speed / yaw error, mean of 2 seeds per cell (C6v2 parents:
+0.031 / 0.106 and 0.035 / 0.093):
+
+| turning \ linear | 0.5x | 1x | 2x |
+| --- | --- | --- | --- |
+| 2x | 0.038 / 0.070 | **0.031 / 0.080** | 0.029 / 0.088 |
+| 1x | 0.035 / 0.101 | 0.029 / 0.101 | 0.029 / 0.128 |
+| 0.5x | 0.034 / 0.141 | 0.029 / 0.152 | 0.025 / 0.142 |
+
+- **Operating point: linear 1x, turning 2x.** Held-out speed 0.031 m/s, yaw
+  0.080 rad/s (seed 1: 0.031 / 0.082; seed 2: 0.032 / 0.079), J = 0.95 against a
+  predicted 1.29 for C6v2 as is. That is C6v2's walking accuracy with turning
+  better than C3x's 0.085. Careful-site stall 0%, falls 0.6 per 10 min on both
+  seeds. The fitted optimum and the best tested cell agree.
+- **On C6v2 the seesaw is lopsided.** Each doubling of the turning pair
+  lowers held-out yaw error by 0.033 rad/s (significant), while held-out mean
+  speed error moves by +0.002 m/s (not significant). Under the vendor reward
+  (the screen) the same change cost much more speed. The relative speed term
+  seems to hold walking accuracy in place. Each doubling of the linear pair
+  lowers speed error by 0.004 m/s (significant) and raises yaw error by 0.008
+  (not significant).
+- **More training alone does not fix turning:** the 1x/1x cell (C6v2 + 250
+  iterations) stays at 0.029 / 0.101.
+- **Model checks:** no response shows significant lack of fit (p 0.23-0.97).
+  R^2 is 0.83 for held-out yaw, 0.57-0.74 for the speed responses (small
+  effects against seed noise), and 0.33-0.38 for stall and falls, which are
+  nearly flat (stall 0-0.7%, falls 0-1.9 per 10 min). The falls limit therefore
+  rests on a noisy fit; it does not affect the chosen point (observed 0.6).
+- **Caveat:** the optimum is on the edge of the tested square, and yaw error
+  was still falling at 2x, so the best setting may lie beyond 2x. The model
+  is not used outside the square. All runs are 250-iteration fine-tunes.
+
+**Next:** a confirmation run, C6v3 = C6v2 with the turning pair at 2x,
+trained from the C3 parents (1500 iterations, 3 seeds) and evaluated like every
+other condition; optionally a 3x arm to test whether turning keeps improving.
