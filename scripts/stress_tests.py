@@ -77,8 +77,11 @@ AXES = {
 # --------------------------------------------------------------------------
 def _key(policy: Path, sc: ev.Scenario, seed: int) -> str:
     stat = policy.stat()
+    scd = asdict(sc)
+    if not sc.boom_length_m:  # boom settings are irrelevant without a boom: keep old cache keys valid
+        scd = {k: v for k, v in scd.items() if not k.startswith("boom_")}
     blob = json.dumps({"p": str(policy.resolve()), "m": stat.st_mtime_ns, "s": stat.st_size,
-                       "sc": asdict(sc), "seed": seed}, sort_keys=True, default=str)
+                       "sc": scd, "seed": seed}, sort_keys=True, default=str)
     return hashlib.sha1(blob.encode()).hexdigest()
 
 

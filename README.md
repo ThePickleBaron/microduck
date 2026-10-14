@@ -159,6 +159,12 @@ uv run python scripts/check_policies.py --manifest   # -> results/policy_check.m
 
 Details: [docs/deployment_check.md](docs/deployment_check.md).
 
+## Boom test (side test, no training)
+
+Can the duck carry a 3 ft carbon-fiber boom with a small sensor on the end?
+`uv run python scripts/boom_test.py` -> results/boom/. Details:
+[docs/boom_test.md](docs/boom_test.md).
+
 ## Reward-weight investigation
 
 Which of the vendor reward's 15 weights matter? Reward terms over training

@@ -86,6 +86,16 @@ class Scenario:
     duration_s: float = 120.0
     seeds: int = 3
     commands: list[Segment] = field(default_factory=list)
+    # Optional flexible boom clamped to the trunk (0 = none); see add_boom().
+    boom_length_m: float = 0.0
+    boom_dir: str = "forward"                # forward | back | side | up | up45
+    boom_tip_g: float = 15.0                 # sensor mass at the tip
+    boom_rod_mm: float = 3.0                 # outer diameter
+    boom_bore_mm: float = 0.0                # inner diameter (0 = solid rod)
+    boom_e_gpa: float = 110.0                # Young's modulus (pultruded carbon ~110-140)
+    boom_density: float = 1550.0             # kg/m^3
+    boom_zeta: float = 0.02                  # damping ratio of the first bending mode
+    boom_rigid: bool = False                 # same masses, welded to the trunk (no bending)
 
 
 DEFAULT_COMMANDS = [
@@ -174,6 +184,104 @@ def _apply_training_solver(model: mujoco.MjModel) -> None:
     model.opt.ccd_iterations = 50
 
 
+# --------------------------------------------------------------------------
+# Flexible boom (reduced-order model of a thin carbon rod with a tip sensor)
+# --------------------------------------------------------------------------
+BOOM_DIRS = {  # boom axis (body x) orientation in the trunk frame, mount point on the trunk top
+    "forward": ([1.0, 0.0, 0.0, 0.0], [0.035, 0.0, 0.042]),
+    "back": ([0.0, 0.0, 0.0, 1.0], [-0.040, 0.0, 0.042]),
+    "side": ([0.70710678, 0.0, 0.0, 0.70710678], [0.0, 0.030, 0.042]),
+    "up": ([0.70710678, 0.0, -0.70710678, 0.0], [-0.040, 0.0, 0.042]),
+    "up45": ([0.92387953, 0.0, -0.38268343, 0.0], [0.035, 0.0, 0.042]),
+}
+BOOM_JOINTS = ("md_boom_bend_a", "md_boom_bend_b")
+
+
+def boom_params(sc: Scenario) -> dict:
+    """First bending mode of a cantilevered rod with a tip mass, mapped onto a
+    rigid rod hinged at the clamp with a rotational spring (2 axes).
+
+    Continuous beam: tip stiffness k = 3 EI / L^3, effective mass
+    m_tip + 0.236 m_rod (Rayleigh), so f1 = sqrt(k / m_eff) / 2 pi. The rigid
+    model keeps the real masses and their inertia about the clamp
+    (I = m_tip L^2 + m_rod L^2 / 3) and gets the spring that reproduces f1:
+    k_theta = I (2 pi f1)^2. Damping gives the first mode a damping ratio zeta.
+    """
+    L = sc.boom_length_m
+    ro, ri = sc.boom_rod_mm / 2000.0, sc.boom_bore_mm / 2000.0
+    area = math.pi * (ro**2 - ri**2)
+    I_area = math.pi * (ro**4 - ri**4) / 4.0
+    EI = sc.boom_e_gpa * 1e9 * I_area
+    m_rod = sc.boom_density * area * L
+    m_tip = sc.boom_tip_g / 1000.0
+    k_tip = 3.0 * EI / L**3
+    w1 = math.sqrt(k_tip / (m_tip + 0.236 * m_rod))
+    I_root = m_tip * L**2 + m_rod * L**2 / 3.0
+    k_theta = I_root * w1**2
+    c_theta = 2.0 * sc.boom_zeta * math.sqrt(k_theta * I_root)
+    return {"L": L, "m_rod": m_rod, "m_tip": m_tip, "EI": EI, "f1_hz": w1 / (2 * math.pi),
+            "I_root": I_root, "k_theta": k_theta, "c_theta": c_theta,
+            "static_tip_mm_horizontal": 1000 * (m_tip * 9.81 * L**3 / (3 * EI) + m_rod / L * 9.81 * L**4 / (8 * EI)),
+            "moment_horizontal_nm": 9.81 * (m_tip * L + m_rod * L / 2)}
+
+
+def add_boom(spec: mujoco.MjSpec, sc: Scenario) -> None:
+    """Clamp a boom to the trunk top: a rigid rod on two perpendicular bending
+    hinges (spring + damper from boom_params), a capsule for the rod and a
+    sphere for the sensor. No collisions (it is a thin rod; geometry overlap
+    with the head is not simulated) and no actuators."""
+    if sc.boom_dir not in BOOM_DIRS:
+        raise ValueError(f"boom_dir must be one of {sorted(BOOM_DIRS)}")
+    bp = boom_params(sc)
+    quat, pos = BOOM_DIRS[sc.boom_dir]
+    body = spec.body("trunk_base").add_body()
+    body.name = "md_boom"
+    body.pos = pos
+    body.quat = quat
+    for name, axis in zip(BOOM_JOINTS, ([0, 1, 0], [0, 0, 1]) if not sc.boom_rigid else ()):
+        j = body.add_joint()
+        j.name = name
+        j.type = mujoco.mjtJoint.mjJNT_HINGE
+        j.axis = axis
+        j.stiffness = np.array([[bp["k_theta"]], [0.0], [0.0]])   # this MuJoCo stores [3, 1]; first = linear
+        j.damping = np.array([[bp["c_theta"]], [0.0], [0.0]])
+    rod = body.add_geom()
+    rod.name = "md_boom_rod"
+    rod.type = mujoco.mjtGeom.mjGEOM_CAPSULE
+    rod.fromto = [0, 0, 0, bp["L"], 0, 0]
+    rod.size = [max(sc.boom_rod_mm / 2000.0, 1e-4), 0, 0]
+    rod.mass = bp["m_rod"]
+    tip = body.add_geom()
+    tip.name = "md_boom_sensor"
+    tip.type = mujoco.mjtGeom.mjGEOM_SPHERE
+    tip.pos = [bp["L"], 0, 0]
+    tip.size = [0.008, 0, 0]
+    tip.mass = bp["m_tip"]
+    for g in (rod, tip):
+        g.contype = 0
+        g.conaffinity = 0
+        g.rgba = [0.15, 0.15, 0.15, 1.0] if g is rod else [0.9, 0.5, 0.1, 1.0]
+
+
+def settle_boom(model: mujoco.MjModel, data: mujoco.MjData) -> list[float]:
+    """Put the boom at its static sag (spring torque = gravity torque) so a
+    reset does not start it ringing. Returns the equilibrium angles."""
+    ids = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n) for n in BOOM_JOINTS]
+    if min(ids) < 0:
+        return []
+    qa = [int(model.jnt_qposadr[i]) for i in ids]
+    va = [int(model.jnt_dofadr[i]) for i in ids]
+    k = [float(model.jnt_stiffness[i]) for i in ids]
+    for _ in range(30):
+        mujoco.mj_forward(model, data)
+        for q, v, kk in zip(qa, va, k):
+            data.qpos[q] = -data.qfrc_bias[v] / kk if kk > 0 else 0.0
+    for v in va:
+        data.qvel[v] = 0.0
+    mujoco.mj_forward(model, data)
+    return [float(data.qpos[q]) for q in qa]
+
+
 def build_sim(sc: Scenario, rng):
     """Compile the scenario's MuJoCo model with BAM actuators. Mirrors
     infer_policy.load_mujoco_with_bam, plus the scenario's floor and payload."""
@@ -190,6 +298,8 @@ def build_sim(sc: Scenario, rng):
     if sc.payload_kg > 0:
         trunk = spec.body("trunk_base")
         trunk.mass = trunk.mass + sc.payload_kg
+    if sc.boom_length_m > 0:
+        add_boom(spec, sc)
 
     names = []
     for act in spec.actuators:
@@ -283,6 +393,9 @@ class RunResult:
     # measured, steps stalled, and the sum of the achieved fraction of the
     # command (along the commanded direction; turn rate for pure turns).
     per_command: list = field(default_factory=list)
+    # Boom only: dynamic tip motion about its static sag (mm), while upright.
+    boom_tip_rms_mm: float = float("nan")
+    boom_tip_max_mm: float = float("nan")
 
 
 def run_scenario(sc: Scenario, onnx_path: Path, seed: int) -> RunResult:
@@ -303,6 +416,13 @@ def run_scenario(sc: Scenario, onnx_path: Path, seed: int) -> RunResult:
         policy.last_action[:] = 0.0
         policy.set_position_targets(policy.default_pose)
         mujoco.mj_forward(model, data)
+        if boom_q:
+            boom_static[:] = settle_boom(model, data)
+
+    boom_ids = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n) for n in BOOM_JOINTS]
+    boom_q = [int(model.jnt_qposadr[i]) for i in boom_ids] if min(boom_ids) >= 0 else []
+    boom_static = [0.0] * len(boom_q)
+    boom_dev: list[float] = []
 
     schedule = sc.commands
     cycle = sum(s.seconds for s in schedule)
@@ -366,6 +486,9 @@ def run_scenario(sc: Scenario, onnx_path: Path, seed: int) -> RunResult:
         window.append((float(v_body[0]), float(v_body[1]), float(data.qvel[vadr + 5])))
         if since_reset >= SETTLE_S:
             upright_steps += 1
+            if boom_q:
+                boom_dev.append(sc.boom_length_m * math.hypot(
+                    *(float(data.qpos[q]) - s0 for q, s0 in zip(boom_q, boom_static))))
             if len(window) == window.maxlen:
                 vx, vy, wz = (sum(w[i] for w in window) / len(window) for i in range(3))
                 lin_errs.append(math.hypot(vx - seg.vx, vy - seg.vy))
@@ -394,6 +517,8 @@ def run_scenario(sc: Scenario, onnx_path: Path, seed: int) -> RunResult:
         stall_fraction=stalled_steps / moving_steps if moving_steps else float("nan"),
         wall_seconds=time.perf_counter() - wall0,
         per_command=seg_stats,
+        boom_tip_rms_mm=1000 * math.sqrt(sum(x * x for x in boom_dev) / len(boom_dev)) if boom_dev else float("nan"),
+        boom_tip_max_mm=1000 * max(boom_dev) if boom_dev else float("nan"),
     )
 
 
