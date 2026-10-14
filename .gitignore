@@ -25,3 +25,4 @@ Thumbs.db
 
 # Stress-test outputs and run cache (rebuilt by scripts/stress_tests.py)
 results/stress/
+MUJOCO_LOG.TXT
