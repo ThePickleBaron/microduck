@@ -216,3 +216,30 @@ commissioning step that would have flagged all of it before any site test.
 A two-factor follow-up on the seesaw (linear and angular tracking weight,
 3 levels each, 2-3 seeds) on top of C6v2, to choose the speed/turn operating
 point, or C6v2 with a relative yaw term weighted above the linear one.
+
+## Review notes (2026-10-14)
+
+- **C2 drifts the same way.** C2 (no randomization) is most accurate at
+  iteration 250 (0.050 m/s) and ends at 0.060. Over the same stretch its
+  `track_angular_velocity` rises +0.49 (r = +0.81) and `air_time` falls
+  -0.29: the same speed-for-steadiness re-allocation as C3. So it does not
+  depend on domain randomization.
+- **C3x does not drift.** From iteration 3250 on, C3x is flat
+  (0.090-0.094 m/s), and its reward terms barely move (all changes under
+  0.04/s). With every curriculum held at its final stage, more training
+  neither helps nor hurts. C3's drift continues about 1000 iterations past
+  the last curriculum stage (2000) and then stops, which fits training still
+  adjusting to the final task. That softens the earlier "not the whole
+  story" remark about hypothesis 2.
+- **C6 and C6v2 do not drift.** C6 is most accurate at its last snapshot.
+  C6v2 is most accurate at 1250 (0.020) and ends at 0.022.
+- **The readiness gap in percent misleads for C6/C6v2.** `report.md`
+  shows mean tracking gaps of +40% (C6) and +51% (C6v2) against +7% for
+  C3x. The percentages are large because their home error is tiny. In
+  absolute terms C6v2's held-out combined error (0.053 m/s) is still
+  about half of C3x's (0.098). Report absolute held-out errors alongside
+  the gap.
+- **Logs are clean.** No tracebacks or simulator instability in the C6v2,
+  screen or surface batch logs. Every run reached its final iteration:
+  3 x 1500 for C6v2, 20 x 250 for the screen, 18 x 250 for the surface.
+- **C6v3 / C6v3t3 have not run.** No results reached OneDrive.
